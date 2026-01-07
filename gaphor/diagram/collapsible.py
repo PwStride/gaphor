@@ -1,0 +1,240 @@
+"""Collapsible element functionality.
+
+This module provides a mixin and utilities for creating collapsible diagram elements
+that can toggle between a compact (collapsed) and full (expanded) view.
+
+The collapsed state:
+- Is persisted with save/load
+- Integrates with undo/redo
+- Maintains connections to other elements
+- Shows a collapse/expand icon for user interaction
+
+Group collapse:
+- Multiple items can be assigned to a collapse group
+- Collapsing one item in the group collapses all items in the group
+- Groups are identified by a string group_id
+"""
+
+from __future__ import annotations
+
+from gaphas.geometry import Rectangle
+
+from gaphor.core.modeling.properties import attribute
+from gaphor.diagram.shapes import Box, CssNode, Text, cairo_state
+
+# Constants for the collapse icon
+COLLAPSE_ICON_SIZE = 12
+COLLAPSE_ICON_MARGIN = 4
+
+
+def draw_collapse_icon(
+    collapsed: bool, box: Box, context, bounding_box: Rectangle
+) -> Rectangle:
+    """Draw an expand/collapse icon (triangle) in the top-right corner.
+
+    Returns the bounding rectangle of the icon for hit testing.
+    """
+    cr = context.cairo
+    style = context.style
+
+    icon_size = COLLAPSE_ICON_SIZE
+    margin = COLLAPSE_ICON_MARGIN
+
+    # Position in top-right corner
+    x = bounding_box.x + bounding_box.width - icon_size - margin
+    y = bounding_box.y + margin
+
+    with cairo_state(cr) as cr:
+        stroke_color = style.get("color", (0, 0, 0, 1))
+        cr.set_source_rgba(*stroke_color)
+        cr.set_line_width(1.5)
+
+        if collapsed:
+            # Draw right-pointing triangle (collapsed state - click to expand)
+            cr.move_to(x, y)
+            cr.line_to(x + icon_size, y + icon_size / 2)
+            cr.line_to(x, y + icon_size)
+            cr.close_path()
+        else:
+            # Draw down-pointing triangle (expanded state - click to collapse)
+            cr.move_to(x, y)
+            cr.line_to(x + icon_size, y)
+            cr.line_to(x + icon_size / 2, y + icon_size)
+            cr.close_path()
+
+        cr.fill()
+
+    return Rectangle(x, y, icon_size, icon_size)
+
+
+def is_point_in_collapse_icon(x: float, y: float, bounding_box: Rectangle) -> bool:
+    """Check if a point (x, y) is within the collapse icon area."""
+    icon_size = COLLAPSE_ICON_SIZE
+    margin = COLLAPSE_ICON_MARGIN
+
+    icon_x = bounding_box.width - icon_size - margin
+    icon_y = margin
+
+    return icon_x <= x <= icon_x + icon_size and icon_y <= y <= icon_y + icon_size
+
+
+def can_show_collapse_icon(item) -> bool:
+    """Check if an item can currently show a collapse icon.
+
+    For InterfaceItem, only show the icon when not in folded (ball/socket) mode.
+    """
+    # Check if this is an InterfaceItem in folded mode
+    if hasattr(item, "_folded"):
+        from gaphor.UML.classes.interface import Folded
+
+        if item._folded != Folded.NONE:
+            return False
+    return True
+
+
+class Collapsible:
+    """Mixin class for collapsible diagram elements.
+
+    Add this mixin to ElementPresentation subclasses to enable collapse/expand
+    functionality. The mixin provides:
+    - `collapsed` attribute (persisted)
+    - `collapse_group` attribute for group collapse (persisted)
+    - Icon drawing support
+    - Click detection for the collapse icon
+
+    Usage:
+        class MyItem(Collapsible, ElementPresentation):
+            def __init__(self, diagram, id=None):
+                super().__init__(diagram, id=id)
+                self.watch("collapsed", self.update_shapes)
+
+            def update_shapes(self, event=None):
+                if self.collapsed:
+                    self.shape = self.collapsed_shape()
+                else:
+                    self.shape = self.expanded_shape()
+    """
+
+    collapsed: attribute[int] = attribute("collapsed", int, default=0)
+    collapse_group: attribute[str] = attribute("collapse_group", str, default="")
+
+    # Store the last icon bounding box for hit testing
+    _collapse_icon_bounds: Rectangle | None = None
+
+    def draw_collapse_icon(self, context, bounding_box: Rectangle) -> None:
+        """Draw the collapse icon and store its bounds for hit testing."""
+        self._collapse_icon_bounds = draw_collapse_icon(
+            bool(self.collapsed), None, context, bounding_box
+        )
+
+    def is_collapse_icon_at(self, x: float, y: float) -> bool:
+        """Check if the given point is on the collapse icon.
+
+        Coordinates are relative to the item's top-left corner.
+        """
+        if not can_show_collapse_icon(self):
+            return False
+        return is_point_in_collapse_icon(x, y, Rectangle(0, 0, self.width, self.height))
+
+    def toggle_collapsed(self) -> None:
+        """Toggle the collapsed state."""
+        self.collapsed = 0 if self.collapsed else 1
+
+    def get_collapse_group_members(self):
+        """Get all items in the same collapse group.
+
+        Returns a list of items that share the same collapse_group id.
+        """
+        if not self.collapse_group or not hasattr(self, "diagram"):
+            return [self]
+
+        members = []
+        for item in self.diagram.get_all_items():
+            if (
+                isinstance(item, Collapsible)
+                and item.collapse_group == self.collapse_group
+            ):
+                members.append(item)
+        return members
+
+    def toggle_group_collapsed(self) -> None:
+        """Toggle the collapsed state for all items in the collapse group."""
+        new_state = 0 if self.collapsed else 1
+        for item in self.get_collapse_group_members():
+            item.collapsed = new_state
+
+
+def collapsed_compartment(presentation, name: str = "") -> CssNode:
+    """Create a collapsed compartment showing just a summary.
+
+    Args:
+        presentation: The presentation item
+        name: Optional name to show (defaults to subject name)
+    """
+    return CssNode(
+        "compartment",
+        None,
+        Box(
+            CssNode(
+                "name",
+                presentation.subject,
+                Text(
+                    text=lambda: name
+                    or (presentation.subject and presentation.subject.name)
+                    or ""
+                ),
+            ),
+        ),
+    )
+
+
+def draw_collapsed_border(box: Box, context, bounding_box: Rectangle):
+    """Draw a border for collapsed elements with the collapse icon."""
+    from gaphor.diagram.shapes import draw_border
+
+    # Draw the standard border
+    draw_border(box, context, bounding_box)
+
+    # Draw the collapse icon (right-pointing triangle for collapsed)
+    draw_collapse_icon(True, box, context, bounding_box)
+
+
+def draw_expanded_border(box: Box, context, bounding_box: Rectangle):
+    """Draw a border for expanded elements with the collapse icon."""
+    from gaphor.diagram.shapes import draw_border
+
+    # Draw the standard border
+    draw_border(box, context, bounding_box)
+
+    # Draw the collapse icon (down-pointing triangle for expanded)
+    draw_collapse_icon(False, box, context, bounding_box)
+
+
+def assign_collapse_group(items, group_id: str) -> None:
+    """Assign a group of items to a collapse group.
+
+    Args:
+        items: List of Collapsible items to group
+        group_id: The group identifier string
+    """
+    for item in items:
+        if isinstance(item, Collapsible):
+            item.collapse_group = group_id
+
+
+def remove_from_collapse_group(items) -> None:
+    """Remove items from their collapse groups.
+
+    Args:
+        items: List of Collapsible items to ungroup
+    """
+    for item in items:
+        if isinstance(item, Collapsible):
+            item.collapse_group = ""
+
+
+def generate_group_id() -> str:
+    """Generate a unique group identifier."""
+    import uuid
+
+    return f"collapse-group-{uuid.uuid4().hex[:8]}"

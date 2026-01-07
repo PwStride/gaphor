@@ -6,6 +6,7 @@ from gaphas.tool import hover_tool, rubberband_tool, view_focus_tool, zoom_tools
 from gaphas.tool.scroll import pan_tool
 
 import gaphor.diagram.tools.handlemove
+from gaphor.diagram.tools.collapse import collapse_click_tool
 from gaphor.diagram.tools.dnd import drop_target_tool
 from gaphor.diagram.tools.dropzone import drop_zone_tool
 from gaphor.diagram.tools.itemtool import find_item_and_handle_at_point, item_tool
@@ -21,6 +22,7 @@ def apply_default_tool_set(view, modeling_language, event_manager, rubberband_st
     view.add_controller(
         hover_tool(find_item_and_handle_at_point=find_item_and_handle_at_point)
     )
+    view.add_controller(collapse_click_tool(event_manager))
     view.add_controller(*text_edit_tools(event_manager))
     view.add_controller(
         *transactional_tool(item_tool(event_manager), event_manager=event_manager)

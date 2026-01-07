@@ -8,6 +8,7 @@ from gaphor import UML
 from gaphor.core import gettext
 from gaphor.core.eventmanager import EventManager
 from gaphor.core.format import format, parse
+from gaphor.diagram.collapsible import Collapsible
 from gaphor.diagram.propertypages import (
     NamePropertyPage,
     PropertyPageBase,
@@ -565,3 +566,37 @@ class ComponentPropertyPage(PropertyPageBase):
         if subject := self.subject:
             with Transaction(self.event_manager):
                 subject.isIndirectlyInstantiated = button.get_active()
+
+
+@PropertyPages.register(DataTypeItem)
+@PropertyPages.register(InterfaceItem)
+@PropertyPages.register(ClassItem)
+class CollapsedPropertyPage(PropertyPageBase):
+    """Property page for controlling the collapsed state of an item."""
+
+    order = 12  # Show early in the property pages
+
+    def __init__(self, item, event_manager: EventManager):
+        super().__init__()
+        self.item = item
+        self.event_manager = event_manager
+
+    def construct(self):
+        if not isinstance(self.item, Collapsible):
+            return
+
+        builder = new_builder(
+            "collapsed-editor",
+            signals={
+                "collapsed-changed": (self.on_collapsed_changed,),
+            },
+        )
+
+        collapsed = builder.get_object("collapsed")
+        collapsed.set_active(bool(self.item.collapsed))
+
+        return builder.get_object("collapsed-editor")
+
+    def on_collapsed_changed(self, button, gparam):
+        with Transaction(self.event_manager):
+            self.item.collapsed = 1 if button.get_active() else 0

@@ -10,6 +10,7 @@ from gaphas.tool.rubberband import RubberbandPainter, RubberbandState
 from gaphas.view import GtkView
 from gi.repository import Adw, Gdk, GdkPixbuf, Gio, GLib, Gtk
 
+from gaphor.action import action
 from gaphor.core import event_handler, gettext
 from gaphor.core.modeling import StyleSheet
 from gaphor.core.modeling.diagram import StyledDiagram
@@ -18,6 +19,12 @@ from gaphor.core.modeling.event import (
     StyleSheetUpdated,
 )
 from gaphor.core.styling import PrefersColorScheme
+from gaphor.diagram.collapsible import (
+    Collapsible,
+    assign_collapse_group,
+    generate_group_id,
+    remove_from_collapse_group,
+)
 from gaphor.diagram.diagramtoolbox import get_tool_def, tooliter
 from gaphor.diagram.event import DiagramSelectionChanged
 from gaphor.diagram.painter import DiagramTypePainter, ItemPainter
@@ -330,6 +337,81 @@ class DiagramPage:
 
         view.request_update(self.diagram.get_all_items())
 
+    @action(name="diagram.collapse-item")
+    def collapse_item(self, item_id: str):
+        """Collapse a diagram item."""
+        item = self.element_factory.lookup(item_id)
+        if item and isinstance(item, Collapsible):
+            with Transaction(self.event_manager):
+                # If item has a collapse group, collapse all group members
+                if item.collapse_group:
+                    for member in item.get_collapse_group_members():
+                        member.collapsed = 1
+                else:
+                    item.collapsed = 1
+
+    @action(name="diagram.expand-item")
+    def expand_item(self, item_id: str):
+        """Expand a diagram item."""
+        item = self.element_factory.lookup(item_id)
+        if item and isinstance(item, Collapsible):
+            with Transaction(self.event_manager):
+                # If item has a collapse group, expand all group members
+                if item.collapse_group:
+                    for member in item.get_collapse_group_members():
+                        member.collapsed = 0
+                else:
+                    item.collapsed = 0
+
+    @action(name="diagram.collapse-selected")
+    def collapse_selected(self):
+        """Collapse all selected items."""
+        if not self.view:
+            return
+        with Transaction(self.event_manager):
+            for item in self.view.selection.selected_items:
+                if isinstance(item, Collapsible):
+                    item.collapsed = 1
+
+    @action(name="diagram.expand-selected")
+    def expand_selected(self):
+        """Expand all selected items."""
+        if not self.view:
+            return
+        with Transaction(self.event_manager):
+            for item in self.view.selection.selected_items:
+                if isinstance(item, Collapsible):
+                    item.collapsed = 0
+
+    @action(name="diagram.group-collapse")
+    def group_collapse(self):
+        """Create a collapse group from selected items."""
+        if not self.view:
+            return
+        collapsible_items = [
+            item
+            for item in self.view.selection.selected_items
+            if isinstance(item, Collapsible)
+        ]
+        if len(collapsible_items) >= 2:
+            with Transaction(self.event_manager):
+                group_id = generate_group_id()
+                assign_collapse_group(collapsible_items, group_id)
+
+    @action(name="diagram.ungroup-collapse")
+    def ungroup_collapse(self):
+        """Remove selected items from their collapse groups."""
+        if not self.view:
+            return
+        collapsible_items = [
+            item
+            for item in self.view.selection.selected_items
+            if isinstance(item, Collapsible)
+        ]
+        if collapsible_items:
+            with Transaction(self.event_manager):
+                remove_from_collapse_group(collapsible_items)
+
 
 def delete_selected_items(view: GtkView, event_manager):
     with Transaction(event_manager):
@@ -351,7 +433,11 @@ def context_menu_controller(context_menu, diagram):
         item, _handle = default_find_item_and_handle_at_point(view, (x, y))
 
         context_menu.set_menu_model(
-            popup_model(item.subject if item and item.subject else diagram)
+            popup_model(
+                item.subject if item and item.subject else diagram,
+                item,
+                view.selection.selected_items,
+            )
         )
 
         gdk_rect = Gdk.Rectangle()
@@ -369,7 +455,7 @@ def context_menu_controller(context_menu, diagram):
     return ctrl
 
 
-def popup_model(element):
+def popup_model(element, item=None, selected_items=None):
     model = Gio.Menu.new()
     part = Gio.Menu.new()
 
@@ -381,5 +467,61 @@ def popup_model(element):
 
     part.append_item(menu_item)
     model.append_section(None, part)
+
+    # Add collapse/expand option for collapsible items
+    if item is not None and isinstance(item, Collapsible):
+        collapse_part = Gio.Menu.new()
+        if item.collapsed:
+            collapse_item = Gio.MenuItem.new(
+                gettext("Expand"),
+                "diagram.expand-item",
+            )
+        else:
+            collapse_item = Gio.MenuItem.new(
+                gettext("Collapse"),
+                "diagram.collapse-item",
+            )
+        collapse_item.set_attribute_value("target", GLib.Variant.new_string(item.id))
+        collapse_part.append_item(collapse_item)
+        model.append_section(None, collapse_part)
+
+    # Add group collapse options when multiple items are selected
+    if selected_items:
+        collapsible_selected = [i for i in selected_items if isinstance(i, Collapsible)]
+
+        if len(collapsible_selected) >= 2:
+            group_part = Gio.Menu.new()
+
+            # Option to collapse all selected
+            collapse_all = Gio.MenuItem.new(
+                gettext("Collapse Selected"),
+                "diagram.collapse-selected",
+            )
+            group_part.append_item(collapse_all)
+
+            # Option to expand all selected
+            expand_all = Gio.MenuItem.new(
+                gettext("Expand Selected"),
+                "diagram.expand-selected",
+            )
+            group_part.append_item(expand_all)
+
+            # Option to create a collapse group
+            create_group = Gio.MenuItem.new(
+                gettext("Create Collapse Group"),
+                "diagram.group-collapse",
+            )
+            group_part.append_item(create_group)
+
+            # Check if any selected items are in a group
+            any_in_group = any(i.collapse_group for i in collapsible_selected)
+            if any_in_group:
+                ungroup = Gio.MenuItem.new(
+                    gettext("Remove from Collapse Group"),
+                    "diagram.ungroup-collapse",
+                )
+                group_part.append_item(ungroup)
+
+            model.append_section(None, group_part)
 
     return model

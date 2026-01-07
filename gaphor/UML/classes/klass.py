@@ -3,11 +3,16 @@ import logging
 from gaphor import UML
 from gaphor.core.format import format
 from gaphor.core.modeling.properties import attribute
+from gaphor.diagram.collapsible import (
+    Collapsible,
+    draw_collapsed_border,
+    draw_expanded_border,
+)
 from gaphor.diagram.presentation import (
     Classified,
     ElementPresentation,
 )
-from gaphor.diagram.shapes import Box, CssNode, Text, draw_border, draw_top_separator
+from gaphor.diagram.shapes import Box, CssNode, Text, draw_top_separator
 from gaphor.diagram.support import represents
 from gaphor.UML.classes.stereotype import stereotype_compartments, stereotype_watches
 from gaphor.UML.compartments import name_compartment
@@ -17,11 +22,12 @@ log = logging.getLogger(__name__)
 
 @represents(UML.Class)
 @represents(UML.Stereotype)
-class ClassItem(Classified, ElementPresentation[UML.Class]):
+class ClassItem(Collapsible, Classified, ElementPresentation[UML.Class]):
     """This item visualizes a Class instance.
 
     A ClassItem contains two compartments: one for attributes and one
-    for operations.
+    for operations. The item can be collapsed to show only the name
+    compartment, or expanded to show all compartments.
     """
 
     def __init__(self, diagram, id=None):
@@ -29,10 +35,10 @@ class ClassItem(Classified, ElementPresentation[UML.Class]):
         self.watch("show_stereotypes", self.update_shapes).watch(
             "show_attributes", self.update_shapes
         ).watch("show_operations", self.update_shapes).watch(
-            "subject[NamedElement].name"
-        ).watch("subject[NamedElement].namespace.name").watch(
-            "subject[Classifier].isAbstract", self.update_shapes
-        )
+            "collapsed", self.update_shapes
+        ).watch("subject[NamedElement].name").watch(
+            "subject[NamedElement].namespace.name"
+        ).watch("subject[Classifier].isAbstract", self.update_shapes)
         attribute_watches(self, "Class")
         operation_watches(self, "Class")
         stereotype_watches(self)
@@ -51,23 +57,35 @@ class ClassItem(Classified, ElementPresentation[UML.Class]):
         return ()
 
     def update_shapes(self, event=None):
-        self.shape = Box(
-            name_compartment(self, self.additional_stereotypes),
-            *(
-                self.show_attributes
-                and self.subject
-                and [attributes_compartment(self.subject)]
-                or []
-            ),
-            *(
-                self.show_operations
-                and self.subject
-                and [operations_compartment(self.subject)]
-                or []
-            ),
-            *(self.show_stereotypes and stereotype_compartments(self.subject) or []),
-            draw=draw_border,
-        )
+        if self.collapsed:
+            # Collapsed view: show only name compartment with collapse icon
+            self.shape = Box(
+                name_compartment(self, self.additional_stereotypes),
+                draw=draw_collapsed_border,
+            )
+        else:
+            # Expanded view: show all compartments with expand icon
+            self.shape = Box(
+                name_compartment(self, self.additional_stereotypes),
+                *(
+                    self.show_attributes
+                    and self.subject
+                    and [attributes_compartment(self.subject)]
+                    or []
+                ),
+                *(
+                    self.show_operations
+                    and self.subject
+                    and [operations_compartment(self.subject)]
+                    or []
+                ),
+                *(
+                    self.show_stereotypes
+                    and stereotype_compartments(self.subject)
+                    or []
+                ),
+                draw=draw_expanded_border,
+            )
 
 
 def attribute_watches(presentation, cast):

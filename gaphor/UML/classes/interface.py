@@ -77,12 +77,17 @@ from gaphas.item import NE, NW, SE, SW
 from gaphor import UML
 from gaphor.core.modeling.presentation import literal_eval
 from gaphor.core.modeling.properties import attribute
+from gaphor.diagram.collapsible import (
+    Collapsible,
+    draw_collapsed_border,
+    draw_expanded_border,
+)
 from gaphor.diagram.presentation import (
     Classified,
     ElementPresentation,
     text_name,
 )
-from gaphor.diagram.shapes import Box, IconBox, draw_border, stroke
+from gaphor.diagram.shapes import Box, IconBox, stroke
 from gaphor.diagram.support import represents
 from gaphor.UML.classes.klass import (
     attribute_watches,
@@ -147,11 +152,13 @@ class InterfacePort(LinePort):
 
 
 @represents(UML.Interface)
-class InterfaceItem(Classified, ElementPresentation):
+class InterfaceItem(Collapsible, Classified, ElementPresentation):
     """Interface item supporting class box, folded notations and assembly
     connector icon mode.
 
     When in folded mode, provided (ball) notation is used by default.
+    When in class box mode (not folded), the item can be collapsed to show
+    only the name compartment.
     """
 
     RADIUS_PROVIDED = 10
@@ -184,10 +191,10 @@ class InterfaceItem(Classified, ElementPresentation):
         self.watch("show_stereotypes", self.update_shapes).watch(
             "show_attributes", self.update_shapes
         ).watch("show_operations", self.update_shapes).watch(
-            "subject[NamedElement].name"
-        ).watch("subject[NamedElement].namespace.name").watch(
-            "subject[Interface].supplierDependency", self.update_shapes
-        )
+            "collapsed", self.update_shapes
+        ).watch("subject[NamedElement].name").watch(
+            "subject[NamedElement].namespace.name"
+        ).watch("subject[Interface].supplierDependency", self.update_shapes)
         attribute_watches(self, "Interface")
         operation_watches(self, "Interface")
         stereotype_watches(self)
@@ -272,23 +279,35 @@ class InterfaceItem(Classified, ElementPresentation):
             self.shape = self.ball_and_socket_shape(connectors)
 
     def class_shape(self):
-        return Box(
-            name_compartment(self, lambda: [self.diagram.gettext("interface")]),
-            *(
-                self.show_attributes
-                and self.subject
-                and [attributes_compartment(self.subject)]
-                or []
-            ),
-            *(
-                self.show_operations
-                and self.subject
-                and [operations_compartment(self.subject)]
-                or []
-            ),
-            *(self.show_stereotypes and stereotype_compartments(self.subject) or []),
-            draw=draw_border,
-        )
+        if self.collapsed:
+            # Collapsed view: show only name compartment with collapse icon
+            return Box(
+                name_compartment(self, lambda: [self.diagram.gettext("interface")]),
+                draw=draw_collapsed_border,
+            )
+        else:
+            # Expanded view: show all compartments with expand icon
+            return Box(
+                name_compartment(self, lambda: [self.diagram.gettext("interface")]),
+                *(
+                    self.show_attributes
+                    and self.subject
+                    and [attributes_compartment(self.subject)]
+                    or []
+                ),
+                *(
+                    self.show_operations
+                    and self.subject
+                    and [operations_compartment(self.subject)]
+                    or []
+                ),
+                *(
+                    self.show_stereotypes
+                    and stereotype_compartments(self.subject)
+                    or []
+                ),
+                draw=draw_expanded_border,
+            )
 
     def ball_and_socket_shape(self, connectors=None):
         if connectors is None:
