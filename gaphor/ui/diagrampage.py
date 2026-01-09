@@ -25,6 +25,7 @@ from gaphor.diagram.collapsible import (
     generate_group_id,
     remove_from_collapse_group,
 )
+from gaphor.diagram.presentation import Classified, connect
 from gaphor.diagram.diagramtoolbox import get_tool_def, tooliter
 from gaphor.diagram.event import DiagramSelectionChanged
 from gaphor.diagram.painter import DiagramTypePainter, ItemPainter
@@ -412,6 +413,152 @@ class DiagramPage:
             with Transaction(self.event_manager):
                 remove_from_collapse_group(collapsible_items)
 
+    def _create_association_between_items(self, head_item, tail_item, config_func=None):
+        """Helper method to create an association between two items."""
+        from gaphor.UML.classes.association import AssociationItem
+
+        # Create the association item on the diagram
+        assoc = self.diagram.create(AssociationItem)
+
+        # Apply configuration function if provided (for different association types)
+        if config_func:
+            config_func(assoc)
+
+        # Position the association line between the two items
+        head_pos = (
+            head_item.matrix[4] + head_item.width / 2,
+            head_item.matrix[5] + head_item.height / 2,
+        )
+        tail_pos = (
+            tail_item.matrix[4] + tail_item.width / 2,
+            tail_item.matrix[5] + tail_item.height / 2,
+        )
+
+        assoc.handles()[0].pos = head_pos
+        assoc.handles()[-1].pos = tail_pos
+
+        # Connect the association ends to the items
+        connect(assoc, assoc.head, head_item)
+        connect(assoc, assoc.tail, tail_item)
+
+        return assoc
+
+    @action(name="diagram.add-association")
+    def add_association(self):
+        """Add basic associations between all selected classifier items."""
+        self._add_association_with_type(None)
+
+    @action(name="diagram.add-directed-association")
+    def add_directed_association(self):
+        """Add directed associations (arrow pointing to second item) between selected items."""
+        from gaphor.UML.classes.classestoolbox import direct_association_config
+
+        self._add_association_with_type(direct_association_config)
+
+    @action(name="diagram.add-directed-association-reverse")
+    def add_directed_association_reverse(self):
+        """Add directed associations (arrow pointing to first item) between selected items."""
+        from gaphor.UML.classes.classestoolbox import direct_association_config
+
+        self._add_association_with_type(direct_association_config, reverse=True)
+
+    @action(name="diagram.add-shared-association")
+    def add_shared_association(self):
+        """Add shared associations (diamond at second item) between selected items."""
+        from gaphor.UML.classes.classestoolbox import shared_association_config
+
+        self._add_association_with_type(shared_association_config)
+
+    @action(name="diagram.add-shared-association-reverse")
+    def add_shared_association_reverse(self):
+        """Add shared associations (diamond at first item) between selected items."""
+        from gaphor.UML.classes.classestoolbox import shared_association_config
+
+        self._add_association_with_type(shared_association_config, reverse=True)
+
+    @action(name="diagram.add-composite-association")
+    def add_composite_association(self):
+        """Add composite associations (diamond at second item) between selected items."""
+        from gaphor.UML.classes.classestoolbox import composite_association_config
+
+        self._add_association_with_type(composite_association_config)
+
+    @action(name="diagram.add-composite-association-reverse")
+    def add_composite_association_reverse(self):
+        """Add composite associations (diamond at first item) between selected items."""
+        from gaphor.UML.classes.classestoolbox import composite_association_config
+
+        self._add_association_with_type(composite_association_config, reverse=True)
+
+    def _add_association_with_type(self, config_func, reverse=False):
+        """Add associations of a specific type between all selected classifier items.
+
+        Args:
+            config_func: Configuration function for the association type
+            reverse: If True, swap head and tail to reverse the direction
+        """
+        if not self.view:
+            return
+
+        # Get all selected items that are Classified (can have associations)
+        classified_items = [
+            item
+            for item in self.view.selection.selected_items
+            if isinstance(item, Classified) and item.subject
+        ]
+
+        if len(classified_items) < 2:
+            return
+
+        with Transaction(self.event_manager):
+            # Create associations between consecutive pairs of items
+            for i in range(len(classified_items) - 1):
+                if reverse:
+                    # Swap head and tail to reverse direction
+                    head_item = classified_items[i + 1]
+                    tail_item = classified_items[i]
+                else:
+                    head_item = classified_items[i]
+                    tail_item = classified_items[i + 1]
+                self._create_association_between_items(head_item, tail_item, config_func)
+
+    @action(name="diagram.remove-association")
+    def remove_association(self):
+        """Remove all association arrows connected to selected items."""
+        if not self.view:
+            return
+
+        from gaphor.UML.classes.association import AssociationItem
+
+        # Get all selected items that are Classified
+        classified_items = [
+            item
+            for item in self.view.selection.selected_items
+            if isinstance(item, Classified)
+        ]
+
+        if not classified_items:
+            return
+
+        # Find all associations connected to selected items
+        associations_to_remove = set()
+        for item in self.diagram.get_all_items():
+            if isinstance(item, AssociationItem):
+                # Check if either end of the association is connected to a selected item
+                head_conn = self.diagram.connections.get_connection(item.head)
+                tail_conn = self.diagram.connections.get_connection(item.tail)
+
+                head_connected = head_conn and head_conn.connected in classified_items
+                tail_connected = tail_conn and tail_conn.connected in classified_items
+
+                if head_connected or tail_connected:
+                    associations_to_remove.add(item)
+
+        if associations_to_remove:
+            with Transaction(self.event_manager):
+                for assoc in associations_to_remove:
+                    assoc.unlink()
+
 
 def delete_selected_items(view: GtkView, event_manager):
     with Transaction(event_manager):
@@ -467,6 +614,104 @@ def popup_model(element, item=None, selected_items=None):
 
     part.append_item(menu_item)
     model.append_section(None, part)
+
+    # Add association options when classified items are selected
+    if selected_items:
+        classified_selected = [
+            i for i in selected_items if isinstance(i, Classified) and i.subject
+        ]
+
+        if len(classified_selected) >= 2:
+            assoc_part = Gio.Menu.new()
+
+            # Create submenu for different association types
+            add_assoc_submenu = Gio.Menu.new()
+
+            # Basic Association (no direction)
+            add_basic = Gio.MenuItem.new(
+                gettext("Association"),
+                "diagram.add-association",
+            )
+            add_assoc_submenu.append_item(add_basic)
+
+            # Directed Association submenu with direction options
+            directed_submenu = Gio.Menu.new()
+            add_directed_forward = Gio.MenuItem.new(
+                gettext("First → Second"),
+                "diagram.add-directed-association",
+            )
+            directed_submenu.append_item(add_directed_forward)
+            add_directed_reverse = Gio.MenuItem.new(
+                gettext("Second → First"),
+                "diagram.add-directed-association-reverse",
+            )
+            directed_submenu.append_item(add_directed_reverse)
+            directed_item = Gio.MenuItem.new_submenu(
+                gettext("Directed Association"),
+                directed_submenu,
+            )
+            add_assoc_submenu.append_item(directed_item)
+
+            # Shared Association submenu with direction options
+            shared_submenu = Gio.Menu.new()
+            add_shared_forward = Gio.MenuItem.new(
+                gettext("◇ at Second"),
+                "diagram.add-shared-association",
+            )
+            shared_submenu.append_item(add_shared_forward)
+            add_shared_reverse = Gio.MenuItem.new(
+                gettext("◇ at First"),
+                "diagram.add-shared-association-reverse",
+            )
+            shared_submenu.append_item(add_shared_reverse)
+            shared_item = Gio.MenuItem.new_submenu(
+                gettext("Shared Association"),
+                shared_submenu,
+            )
+            add_assoc_submenu.append_item(shared_item)
+
+            # Composite Association submenu with direction options
+            composite_submenu = Gio.Menu.new()
+            add_composite_forward = Gio.MenuItem.new(
+                gettext("◆ at Second"),
+                "diagram.add-composite-association",
+            )
+            composite_submenu.append_item(add_composite_forward)
+            add_composite_reverse = Gio.MenuItem.new(
+                gettext("◆ at First"),
+                "diagram.add-composite-association-reverse",
+            )
+            composite_submenu.append_item(add_composite_reverse)
+            composite_item = Gio.MenuItem.new_submenu(
+                gettext("Composite Association"),
+                composite_submenu,
+            )
+            add_assoc_submenu.append_item(composite_item)
+
+            # Add the submenu as "Add Association" with arrow
+            add_assoc_item = Gio.MenuItem.new_submenu(
+                gettext("Add Association"),
+                add_assoc_submenu,
+            )
+            assoc_part.append_item(add_assoc_item)
+
+            # Option to remove associations
+            remove_assoc = Gio.MenuItem.new(
+                gettext("Remove Association"),
+                "diagram.remove-association",
+            )
+            assoc_part.append_item(remove_assoc)
+
+            model.append_section(None, assoc_part)
+        elif len(classified_selected) == 1:
+            # Show only remove association when single item is selected
+            assoc_part = Gio.Menu.new()
+            remove_assoc = Gio.MenuItem.new(
+                gettext("Remove Association"),
+                "diagram.remove-association",
+            )
+            assoc_part.append_item(remove_assoc)
+            model.append_section(None, assoc_part)
 
     # Add collapse/expand option for collapsible items
     if item is not None and isinstance(item, Collapsible):
