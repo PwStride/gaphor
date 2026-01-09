@@ -352,7 +352,9 @@ def test_popup_model_shows_association_options_for_multiple_classes(
     # The menu should contain Add Association and Remove Association
     assert menu is not None
     # Menu is a Gio.Menu, we check that it has sections (association options are in a section)
-    assert menu.get_n_items() >= 2  # At least "Show in Model Browser" section + association section
+    assert (
+        menu.get_n_items() >= 2
+    )  # At least "Show in Model Browser" section + association section
 
 
 def test_popup_model_shows_remove_association_for_single_class(

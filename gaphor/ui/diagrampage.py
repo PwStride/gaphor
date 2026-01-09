@@ -25,10 +25,10 @@ from gaphor.diagram.collapsible import (
     generate_group_id,
     remove_from_collapse_group,
 )
-from gaphor.diagram.presentation import Classified, connect
 from gaphor.diagram.diagramtoolbox import get_tool_def, tooliter
 from gaphor.diagram.event import DiagramSelectionChanged
 from gaphor.diagram.painter import DiagramTypePainter, ItemPainter
+from gaphor.diagram.presentation import Classified, connect
 from gaphor.diagram.tools import (
     apply_default_tool_set,
     apply_magnet_tool_set,
@@ -520,7 +520,9 @@ class DiagramPage:
                 else:
                     head_item = classified_items[i]
                     tail_item = classified_items[i + 1]
-                self._create_association_between_items(head_item, tail_item, config_func)
+                self._create_association_between_items(
+                    head_item, tail_item, config_func
+                )
 
     @action(name="diagram.remove-association")
     def remove_association(self):
