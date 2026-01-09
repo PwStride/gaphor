@@ -520,6 +520,7 @@ class DiagramPage:
                 else:
                     head_item = classified_items[i]
                     tail_item = classified_items[i + 1]
+
                 self._create_association_between_items(
                     head_item, tail_item, config_func
                 )
