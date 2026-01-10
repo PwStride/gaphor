@@ -3,6 +3,7 @@ from gi.repository import Gdk, Gtk
 from gaphor.core.modeling import Diagram
 from gaphor.diagram.event import DiagramOpened
 from gaphor.diagram.instanteditors import instant_editor
+from gaphor.diagram.lockable import is_item_locked
 
 
 def text_edit_tools(event_manager):
@@ -20,6 +21,9 @@ def on_key_pressed(controller, keyval, keycode, state, event_manager):
 
     # action: selection.rename
     if item and keyval == Gdk.KEY_F2:
+        # Don't allow text editing on locked items
+        if is_item_locked(item):
+            return False
         return instant_editor(item, view, event_manager)
 
 
@@ -29,8 +33,9 @@ def on_double_click(gesture, n_press, x, y, event_manager):
     if not item or n_press != 2:
         return
 
+    # Don't allow text editing on locked items (but still allow opening diagrams)
     if isinstance(item.subject, Diagram):
         event_manager.handle(DiagramOpened(item.subject))
-    else:
+    elif not is_item_locked(item):
         ix, iy = view.get_matrix_v2i(item).transform_point(x, y)
         return instant_editor(item, view, event_manager, (ix, iy))

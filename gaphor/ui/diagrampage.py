@@ -25,6 +25,7 @@ from gaphor.diagram.collapsible import (
     generate_group_id,
     remove_from_collapse_group,
 )
+from gaphor.diagram.lockable import Lockable, is_item_locked
 from gaphor.diagram.diagramtoolbox import get_tool_def, tooliter
 from gaphor.diagram.event import DiagramSelectionChanged
 from gaphor.diagram.painter import DiagramTypePainter, ItemPainter
@@ -413,6 +414,42 @@ class DiagramPage:
             with Transaction(self.event_manager):
                 remove_from_collapse_group(collapsible_items)
 
+    @action(name="diagram.lock-item")
+    def lock_item(self, item_id: str):
+        """Lock a diagram item."""
+        item = self.element_factory.lookup(item_id)
+        if item and isinstance(item, Lockable):
+            with Transaction(self.event_manager):
+                item.locked = 1
+
+    @action(name="diagram.unlock-item")
+    def unlock_item(self, item_id: str):
+        """Unlock a diagram item."""
+        item = self.element_factory.lookup(item_id)
+        if item and isinstance(item, Lockable):
+            with Transaction(self.event_manager):
+                item.locked = 0
+
+    @action(name="diagram.lock-selected")
+    def lock_selected(self):
+        """Lock all selected items."""
+        if not self.view:
+            return
+        with Transaction(self.event_manager):
+            for item in self.view.selection.selected_items:
+                if isinstance(item, Lockable):
+                    item.locked = 1
+
+    @action(name="diagram.unlock-selected")
+    def unlock_selected(self):
+        """Unlock all selected items."""
+        if not self.view:
+            return
+        with Transaction(self.event_manager):
+            for item in self.view.selection.selected_items:
+                if isinstance(item, Lockable):
+                    item.locked = 0
+
     def _create_association_between_items(self, head_item, tail_item, config_func=None):
         """Helper method to create an association between two items."""
         from gaphor.UML.classes.association import AssociationItem
@@ -718,20 +755,39 @@ def popup_model(element, item=None, selected_items=None):
 
     # Add collapse/expand option for collapsible items
     if item is not None and isinstance(item, Collapsible):
-        collapse_part = Gio.Menu.new()
-        if item.collapsed:
-            collapse_item = Gio.MenuItem.new(
-                gettext("Expand"),
-                "diagram.expand-item",
+        # Don't show collapse/expand if item is locked
+        if not is_item_locked(item):
+            collapse_part = Gio.Menu.new()
+            if item.collapsed:
+                collapse_item = Gio.MenuItem.new(
+                    gettext("Expand"),
+                    "diagram.expand-item",
+                )
+            else:
+                collapse_item = Gio.MenuItem.new(
+                    gettext("Collapse"),
+                    "diagram.collapse-item",
+                )
+            collapse_item.set_attribute_value("target", GLib.Variant.new_string(item.id))
+            collapse_part.append_item(collapse_item)
+            model.append_section(None, collapse_part)
+
+    # Add lock/unlock option for lockable items
+    if item is not None and isinstance(item, Lockable):
+        lock_part = Gio.Menu.new()
+        if item.locked:
+            lock_item = Gio.MenuItem.new(
+                gettext("Unlock"),
+                "diagram.unlock-item",
             )
         else:
-            collapse_item = Gio.MenuItem.new(
-                gettext("Collapse"),
-                "diagram.collapse-item",
+            lock_item = Gio.MenuItem.new(
+                gettext("Lock"),
+                "diagram.lock-item",
             )
-        collapse_item.set_attribute_value("target", GLib.Variant.new_string(item.id))
-        collapse_part.append_item(collapse_item)
-        model.append_section(None, collapse_part)
+        lock_item.set_attribute_value("target", GLib.Variant.new_string(item.id))
+        lock_part.append_item(lock_item)
+        model.append_section(None, lock_part)
 
     # Add group collapse options when multiple items are selected
     if selected_items:
@@ -771,5 +827,28 @@ def popup_model(element, item=None, selected_items=None):
                 group_part.append_item(ungroup)
 
             model.append_section(None, group_part)
+
+    # Add lock/unlock options when multiple items are selected
+    if selected_items:
+        lockable_selected = [i for i in selected_items if isinstance(i, Lockable)]
+
+        if len(lockable_selected) >= 2:
+            lock_group_part = Gio.Menu.new()
+
+            # Option to lock all selected
+            lock_all = Gio.MenuItem.new(
+                gettext("Lock Selected"),
+                "diagram.lock-selected",
+            )
+            lock_group_part.append_item(lock_all)
+
+            # Option to unlock all selected
+            unlock_all = Gio.MenuItem.new(
+                gettext("Unlock Selected"),
+                "diagram.unlock-selected",
+            )
+            lock_group_part.append_item(unlock_all)
+
+            model.append_section(None, lock_group_part)
 
     return model

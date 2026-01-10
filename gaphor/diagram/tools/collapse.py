@@ -14,6 +14,7 @@ from gaphor.diagram.collapsible import (
     can_show_collapse_icon,
     is_point_in_collapse_icon,
 )
+from gaphor.diagram.lockable import is_item_locked
 from gaphor.transaction import Transaction
 
 
@@ -40,6 +41,10 @@ def on_collapse_click(gesture, n_press, x, y, event_manager):
     item, _handle = default_find_item_and_handle_at_point(view, (x, y))
 
     if item is None or not isinstance(item, Collapsible):
+        return
+
+    # Don't allow collapse/expand on locked items
+    if is_item_locked(item):
         return
 
     # Check if this item can show a collapse icon (e.g., not an interface in folded mode)

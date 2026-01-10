@@ -17,6 +17,7 @@ from gaphor.core import event_handler
 from gaphor.core.modeling import Base, Diagram, Presentation
 from gaphor.diagram.connectors import ItemTemporaryDisconnected
 from gaphor.diagram.event import DiagramClosed, DiagramOpened
+from gaphor.diagram.lockable import is_item_locked
 from gaphor.diagram.presentation import (
     AttachedPresentation,
     ElementPresentation,
@@ -133,6 +134,10 @@ class AutoLayout:
             if presentation := presentation_for_object(
                 diagram, subgraph.get_node("graph")[0]
             ):
+                # Skip locked items
+                if is_item_locked(presentation):
+                    continue
+
                 if bb := subgraph.get_node("graph")[0].get("bb"):
                     x, y, w, h = parse_bb(bb, height)
                     presentation.handles()[NW].pos = (0.0, 0.0)
@@ -156,6 +161,10 @@ class AutoLayout:
                 continue
 
             if presentation := presentation_for_object(diagram, node):
+                # Skip locked items
+                if is_item_locked(presentation):
+                    continue
+
                 center = parse_point(node.get_pos(), height)
                 if isinstance(presentation, ElementPresentation):
                     # Normalize handle placement
@@ -181,6 +190,10 @@ class AutoLayout:
 
         for edge in rendered_graph.get_edges():
             if presentation := presentation_for_object(diagram, edge):
+                # Skip locked items
+                if is_item_locked(presentation):
+                    continue
+
                 presentation.orthogonal = False
 
                 reverse = isinstance(presentation, GeneralizationItem)

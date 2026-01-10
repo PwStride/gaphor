@@ -20,6 +20,7 @@ from gaphor.core.modeling.event import (
 )
 from gaphor.core.styling import StyleNode
 from gaphor.diagram.event import DiagramSelectionChanged
+from gaphor.diagram.lockable import is_item_locked
 from gaphor.diagram.propertypages import PropertyPages, new_resource_builder
 from gaphor.i18n import gettext, localedir
 from gaphor.ui.abc import UIComponent
@@ -153,6 +154,7 @@ class EditorStack:
 
         self.vbox: Gtk.Box | None = None
         self._current_item = None
+        self._locked_banner: Gtk.InfoBar | None = None
 
     def open(self, builder):
         """Display the ElementEditor pane."""
@@ -192,16 +194,65 @@ class EditorStack:
         assert self.vbox
         adapters = self._get_adapters(item)
 
+        # Check if the item is locked and show a banner
+        is_locked = is_item_locked(item)
+        if is_locked:
+            self._show_locked_banner()
+
         for (_, name), adapter in adapters:
             try:
                 page = adapter.construct()
                 if not page:
                     continue
+                # Disable all input widgets if item is locked
+                if is_locked:
+                    self._set_widgets_sensitive(page, False)
                 self.vbox.append(page)
             except Exception:
                 log.error(
                     "Could not construct property page for %s", name, exc_info=True
                 )
+
+    def _show_locked_banner(self):
+        """Show a banner indicating the item is locked."""
+        assert self.vbox
+        banner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        banner.add_css_class("locked-banner")
+        banner.set_margin_start(8)
+        banner.set_margin_end(8)
+        banner.set_margin_top(8)
+        banner.set_margin_bottom(8)
+
+        # Lock icon
+        icon = Gtk.Image.new_from_icon_name("changes-prevent-symbolic")
+        banner.append(icon)
+
+        # Label
+        label = Gtk.Label(label=gettext("This item is locked. Editing is disabled."))
+        label.set_wrap(True)
+        banner.append(label)
+
+        self._locked_banner = banner
+        self.vbox.prepend(banner)
+
+    def _set_widgets_sensitive(self, widget, sensitive):
+        """Recursively set sensitivity on all input widgets."""
+        # Disable editable widgets
+        if isinstance(widget, (Gtk.Entry, Gtk.TextView, Gtk.SpinButton,
+                              Gtk.CheckButton, Gtk.ToggleButton, Gtk.Switch,
+                              Gtk.DropDown, Gtk.ComboBox, Gtk.Button)):
+            # Don't disable labels or info buttons, just editable controls
+            if not isinstance(widget, Gtk.Button) or widget.get_css_classes():
+                widget.set_sensitive(sensitive)
+
+        # Recurse into container children
+        if isinstance(widget, Gtk.Box):
+            child = widget.get_first_child()
+            while child:
+                self._set_widgets_sensitive(child, sensitive)
+                child = child.get_next_sibling()
+        elif hasattr(widget, "get_child") and widget.get_child():
+            self._set_widgets_sensitive(widget.get_child(), sensitive)
 
     def clear_pages(self):
         """Remove all tabs from the notebook."""

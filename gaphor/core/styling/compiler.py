@@ -251,7 +251,7 @@ def compile_pseudo_class_selector(selector: selectors.PseudoClassSelector):
         return lambda el: not next(el.children(), 0)
     elif name == "root":
         return lambda el: not el.parent()
-    elif name in ("hover", "focus", "active", "drop", "disabled"):
+    elif name in ("hover", "focus", "active", "drop", "disabled", "locked"):
         return lambda el: name in el.state()
     elif name == "first-child":
         return lambda el: previous(el) is None

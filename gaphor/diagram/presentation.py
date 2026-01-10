@@ -15,6 +15,7 @@ from gaphor.core.modeling.diagram import Diagram, DrawContext
 from gaphor.core.modeling.event import AttributeUpdated, RevertibleEvent
 from gaphor.core.modeling.presentation import Presentation, S, literal_eval
 from gaphor.core.modeling.properties import attribute
+from gaphor.diagram.lockable import Lockable
 from gaphor.diagram.shapes import CssNode, Shape, Text, stroke, traverse_css_nodes
 from gaphor.diagram.text import (
     TextAlign,
@@ -102,12 +103,14 @@ class HandlePositionUpdate:
 # Note: the official documentation is using the terms "Shape" and "Edge" for element and line.
 
 
-class ElementPresentation(gaphas.Element, HandlePositionUpdate, Presentation[S]):
+class ElementPresentation(Lockable, gaphas.Element, HandlePositionUpdate, Presentation[S]):
     """Presentation for Gaphas Element (box-like) items.
 
     To create a shape (boxes, text), assign a shape to `self.shape`. If
     the shape can change, for example, because styling needs to change,
     implement the method `update_shapes()` and set self.shape there.
+
+    Includes Lockable mixin for lock/unlock functionality.
     """
 
     _port_sides = ("top", "right", "bottom", "left")
@@ -215,7 +218,7 @@ class MinimalValueConstraint(BaseConstraint):
         var.value = max(var.value, min)
 
 
-class LinePresentation(gaphas.Line, HandlePositionUpdate, Presentation[S]):
+class LinePresentation(Lockable, gaphas.Line, HandlePositionUpdate, Presentation[S]):
     def __init__(
         self,
         diagram: Diagram,
@@ -415,7 +418,7 @@ def draw_line_end(context, end_handle, second_handle, draw):
         cr.restore()
 
 
-class AttachedPresentation(HandlePositionUpdate, Presentation[S]):
+class AttachedPresentation(Lockable, HandlePositionUpdate, Presentation[S]):
     """An attached presentation is a base type for all sorts of element-like
     presentations that can be attached to an element.
 
