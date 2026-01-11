@@ -358,14 +358,22 @@ class TestClusterItems:
         klass2.matrix.translate(500, 500)
 
         # Get initial bounding box size
-        initial_max_x = max(klass1.matrix[4] + klass1.width, klass2.matrix[4] + klass2.width)
-        initial_max_y = max(klass1.matrix[5] + klass1.height, klass2.matrix[5] + klass2.height)
+        initial_max_x = max(
+            klass1.matrix[4] + klass1.width, klass2.matrix[4] + klass2.width
+        )
+        initial_max_y = max(
+            klass1.matrix[5] + klass1.height, klass2.matrix[5] + klass2.height
+        )
 
         cluster_items([klass1, klass2])
 
         # Items should now be closer together
-        final_max_x = max(klass1.matrix[4] + klass1.width, klass2.matrix[4] + klass2.width)
-        final_max_y = max(klass1.matrix[5] + klass1.height, klass2.matrix[5] + klass2.height)
+        final_max_x = max(
+            klass1.matrix[4] + klass1.width, klass2.matrix[4] + klass2.width
+        )
+        final_max_y = max(
+            klass1.matrix[5] + klass1.height, klass2.matrix[5] + klass2.height
+        )
 
         # The bounding box should be smaller
         assert final_max_x < initial_max_x

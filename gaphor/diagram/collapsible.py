@@ -259,7 +259,8 @@ def cluster_items(items, gap: float = 0) -> None:
 
     # Filter to unlocked element presentations only
     element_items = [
-        item for item in items
+        item
+        for item in items
         if isinstance(item, ElementPresentation) and not is_item_locked(item)
     ]
 
@@ -274,8 +275,8 @@ def cluster_items(items, gap: float = 0) -> None:
         if isinstance(item, Collapsible):
             item.collapsed = 1
         item.request_update()
-        item.width = getattr(item, 'min_width', item.width)
-        item.height = getattr(item, 'min_height', item.height)
+        item.width = getattr(item, "min_width", item.width)
+        item.height = getattr(item, "min_height", item.height)
 
     # Calculate anchor position and sort by spatial ordering
     min_x = min(item.matrix[4] for item in element_items)
@@ -299,8 +300,7 @@ def cluster_items(items, gap: float = 0) -> None:
             for row_item, rw, rh in row_data:
                 # Translate to target position (target - current)
                 row_item.matrix.translate(
-                    target_x - row_item.matrix[4],
-                    target_y - row_item.matrix[5]
+                    target_x - row_item.matrix[4], target_y - row_item.matrix[5]
                 )
                 target_x += rw + gap
             target_y += row_height + gap

@@ -26,9 +26,9 @@ from gaphor.diagram.collapsible import (
     generate_group_id,
     remove_from_collapse_group,
 )
-from gaphor.diagram.lockable import Lockable, is_item_locked
 from gaphor.diagram.diagramtoolbox import get_tool_def, tooliter
 from gaphor.diagram.event import DiagramSelectionChanged
+from gaphor.diagram.lockable import Lockable, is_item_locked
 from gaphor.diagram.painter import DiagramTypePainter, ItemPainter
 from gaphor.diagram.presentation import Classified, connect
 from gaphor.diagram.tools import (
@@ -792,7 +792,9 @@ def popup_model(element, item=None, selected_items=None):
                     gettext("Collapse"),
                     "diagram.collapse-item",
                 )
-            collapse_item.set_attribute_value("target", GLib.Variant.new_string(item.id))
+            collapse_item.set_attribute_value(
+                "target", GLib.Variant.new_string(item.id)
+            )
             collapse_part.append_item(collapse_item)
             model.append_section(None, collapse_part)
 
