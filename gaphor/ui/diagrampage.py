@@ -22,6 +22,7 @@ from gaphor.core.styling import PrefersColorScheme
 from gaphor.diagram.collapsible import (
     Collapsible,
     assign_collapse_group,
+    cluster_items,
     generate_group_id,
     remove_from_collapse_group,
 )
@@ -413,6 +414,29 @@ class DiagramPage:
         if collapsible_items:
             with Transaction(self.event_manager):
                 remove_from_collapse_group(collapsible_items)
+
+    @action(name="diagram.cluster-selected")
+    def cluster_selected(self):
+        """Cluster selected items: collapse and pack tightly together.
+
+        This operation:
+        1. Collapses all selected collapsible items to their minimum size
+        2. Removes extra space between items
+        3. Arranges items in a compact grid layout
+        4. Reduces rendering overhead by minimizing the diagram area
+        """
+        if not self.view:
+            return
+        collapsible_items = [
+            item
+            for item in self.view.selection.selected_items
+            if isinstance(item, Collapsible)
+        ]
+        if len(collapsible_items) >= 2:
+            with Transaction(self.event_manager):
+                cluster_items(collapsible_items)
+            # Post-transaction cleanup: ensure view state is reset
+            self.view.update_back_buffer()
 
     @action(name="diagram.lock-item")
     def lock_item(self, item_id: str):
@@ -816,6 +840,13 @@ def popup_model(element, item=None, selected_items=None):
                 "diagram.group-collapse",
             )
             group_part.append_item(create_group)
+
+            # Option to cluster selected items (collapse and pack tightly)
+            cluster_selected = Gio.MenuItem.new(
+                gettext("Cluster Selected"),
+                "diagram.cluster-selected",
+            )
+            group_part.append_item(cluster_selected)
 
             # Check if any selected items are in a group
             any_in_group = any(i.collapse_group for i in collapsible_selected)

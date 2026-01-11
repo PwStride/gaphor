@@ -238,3 +238,76 @@ def generate_group_id() -> str:
     import uuid
 
     return f"collapse-group-{uuid.uuid4().hex[:8]}"
+
+
+def cluster_items(items, gap: float = 0) -> None:
+    """Cluster items together by collapsing them and packing tightly.
+
+    This function:
+    1. Filters out locked items (respects lock state)
+    2. Collapses all collapsible items to minimize their size
+    3. Repositions items in a compact grid with no extra space
+
+    Args:
+        items: List of diagram items to cluster
+        gap: Space between items (default 0 for tight packing)
+    """
+    import math
+
+    from gaphor.diagram.lockable import is_item_locked
+    from gaphor.diagram.presentation import ElementPresentation
+
+    # Filter to unlocked element presentations only
+    element_items = [
+        item for item in items
+        if isinstance(item, ElementPresentation) and not is_item_locked(item)
+    ]
+
+    if len(element_items) < 2:
+        return
+
+    # Get diagram reference for constraint solving
+    diagram = element_items[0].diagram if element_items else None
+
+    # Collapse all collapsible items and set to minimum size
+    for item in element_items:
+        if isinstance(item, Collapsible):
+            item.collapsed = 1
+        item.request_update()
+        item.width = getattr(item, 'min_width', item.width)
+        item.height = getattr(item, 'min_height', item.height)
+
+    # Calculate anchor position and sort by spatial ordering
+    min_x = min(item.matrix[4] for item in element_items)
+    min_y = min(item.matrix[5] for item in element_items)
+    sorted_items = sorted(element_items, key=lambda i: (i.matrix[5], i.matrix[4]))
+
+    # Calculate grid dimensions
+    num_cols = max(1, int(math.ceil(math.sqrt(len(sorted_items)))))
+
+    # Position items in tight grid using translation
+    target_y, row_height, row_data = min_y, 0, []
+
+    for idx, item in enumerate(sorted_items):
+        w, h = item.width, item.height
+        row_data.append((item, w, h))
+        row_height = max(row_height, h)
+
+        # When row is complete or last item, place all items in row
+        if len(row_data) >= num_cols or idx == len(sorted_items) - 1:
+            target_x = min_x
+            for row_item, rw, rh in row_data:
+                # Translate to target position (target - current)
+                row_item.matrix.translate(
+                    target_x - row_item.matrix[4],
+                    target_y - row_item.matrix[5]
+                )
+                target_x += rw + gap
+            target_y += row_height + gap
+            row_height, row_data = 0, []
+
+    # Finalize: request updates and solve constraints for clean state
+    for item in element_items:
+        item.request_update()
+    if diagram:
+        diagram.connections.solve()

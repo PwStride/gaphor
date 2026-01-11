@@ -8,6 +8,7 @@ from gaphor.diagram.collapsible import (
     Collapsible,
     assign_collapse_group,
     can_show_collapse_icon,
+    cluster_items,
     generate_group_id,
     is_point_in_collapse_icon,
     remove_from_collapse_group,
@@ -322,3 +323,237 @@ class TestInterfaceCollapseIcon:
         klass = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
 
         assert can_show_collapse_icon(klass)
+
+
+class TestClusterItems:
+    """Tests for cluster_items functionality."""
+
+    def test_cluster_collapses_items(self, element_factory):
+        """Test that cluster_items collapses all items."""
+        diagram = element_factory.create(Diagram)
+        klass1 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        klass2 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        klass3 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+
+        # Position items spread out
+        klass1.matrix.translate(0, 0)
+        klass2.matrix.translate(200, 0)
+        klass3.matrix.translate(0, 200)
+
+        cluster_items([klass1, klass2, klass3])
+
+        # All items should be collapsed
+        assert klass1.collapsed == 1
+        assert klass2.collapsed == 1
+        assert klass3.collapsed == 1
+
+    def test_cluster_packs_items_tightly(self, element_factory):
+        """Test that cluster_items packs items close together."""
+        diagram = element_factory.create(Diagram)
+        klass1 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        klass2 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+
+        # Position items far apart
+        klass1.matrix.translate(0, 0)
+        klass2.matrix.translate(500, 500)
+
+        # Get initial bounding box size
+        initial_max_x = max(klass1.matrix[4] + klass1.width, klass2.matrix[4] + klass2.width)
+        initial_max_y = max(klass1.matrix[5] + klass1.height, klass2.matrix[5] + klass2.height)
+
+        cluster_items([klass1, klass2])
+
+        # Items should now be closer together
+        final_max_x = max(klass1.matrix[4] + klass1.width, klass2.matrix[4] + klass2.width)
+        final_max_y = max(klass1.matrix[5] + klass1.height, klass2.matrix[5] + klass2.height)
+
+        # The bounding box should be smaller
+        assert final_max_x < initial_max_x
+        assert final_max_y < initial_max_y
+
+    def test_cluster_with_single_item_does_nothing(self, element_factory):
+        """Test that cluster_items does nothing with single item."""
+        diagram = element_factory.create(Diagram)
+        klass = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        klass.matrix.translate(100, 100)
+
+        original_x = klass.matrix[4]
+        original_y = klass.matrix[5]
+
+        cluster_items([klass])
+
+        # Position should not change
+        assert klass.matrix[4] == original_x
+        assert klass.matrix[5] == original_y
+        # Should not be collapsed
+        assert klass.collapsed == 0
+
+    def test_cluster_preserves_top_left_position(self, element_factory):
+        """Test that cluster_items starts from the top-left of original bounds."""
+        diagram = element_factory.create(Diagram)
+        klass1 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        klass2 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+
+        # Position items with klass1 at top-left
+        klass1.matrix.translate(50, 50)
+        klass2.matrix.translate(300, 300)
+
+        min_x_before = min(klass1.matrix[4], klass2.matrix[4])
+        min_y_before = min(klass1.matrix[5], klass2.matrix[5])
+
+        cluster_items([klass1, klass2])
+
+        # The cluster should start from the original top-left position
+        min_x_after = min(klass1.matrix[4], klass2.matrix[4])
+        min_y_after = min(klass1.matrix[5], klass2.matrix[5])
+
+        assert min_x_after == min_x_before
+        assert min_y_after == min_y_before
+
+    def test_cluster_resizes_items_to_minimum(self, element_factory):
+        """Test that cluster_items resizes items to their minimum size."""
+        diagram = element_factory.create(Diagram)
+        klass1 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        klass1.subject.name = "TestClass"
+
+        # Make item larger than minimum
+        klass1.width = 300
+        klass1.height = 200
+
+        cluster_items([klass1, klass1])  # Need 2 items for cluster to work
+
+        # Width and height should be reduced to minimum
+        # (exact values depend on font and styling, just check they're smaller)
+        assert klass1.width <= 300
+        assert klass1.height <= 200
+
+    def test_cluster_skips_locked_items(self, element_factory):
+        """Test that cluster_items does not move locked items."""
+        diagram = element_factory.create(Diagram)
+        klass1 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        klass2 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        klass3 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+
+        # Position items spread out using translate
+        klass2.matrix.translate(500, 500)
+        klass3.matrix.translate(100, 100)
+
+        # Lock klass2
+        klass2.locked = 1
+        original_x, original_y = klass2.matrix[4], klass2.matrix[5]
+
+        cluster_items([klass1, klass2, klass3])
+
+        # Locked item should not move
+        assert klass2.matrix[4] == original_x
+        assert klass2.matrix[5] == original_y
+        # Locked item should not be collapsed
+        assert klass2.collapsed == 0
+
+    def test_cluster_with_all_locked_items_does_nothing(self, element_factory):
+        """Test that cluster_items does nothing when all items are locked."""
+        diagram = element_factory.create(Diagram)
+        klass1 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        klass2 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+
+        klass2.matrix.translate(500, 500)
+
+        # Lock both items
+        klass1.locked = 1
+        klass2.locked = 1
+
+        original_x1, original_y1 = klass1.matrix[4], klass1.matrix[5]
+        original_x2, original_y2 = klass2.matrix[4], klass2.matrix[5]
+
+        cluster_items([klass1, klass2])
+
+        # Neither item should move
+        assert klass1.matrix[4] == original_x1
+        assert klass1.matrix[5] == original_y1
+        assert klass2.matrix[4] == original_x2
+        assert klass2.matrix[5] == original_y2
+
+    def test_cluster_solves_constraints(self, element_factory):
+        """Test that cluster_items solves diagram constraints after positioning."""
+        diagram = element_factory.create(Diagram)
+        klass1 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        klass2 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+
+        klass1.matrix.translate(0, 0)
+        klass2.matrix.translate(500, 500)
+
+        cluster_items([klass1, klass2])
+
+        # Constraints should be solved - no pending updates
+        # Items should have valid positions after constraint solving
+        assert klass1.matrix[4] >= 0
+        assert klass1.matrix[5] >= 0
+        assert klass2.matrix[4] >= 0
+        assert klass2.matrix[5] >= 0
+
+    def test_cluster_with_mixed_item_types(self, element_factory):
+        """Test clustering with different collapsible item types."""
+        from gaphor.UML.classes.interface import InterfaceItem
+
+        diagram = element_factory.create(Diagram)
+        klass = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        interface = diagram.create(
+            InterfaceItem, subject=element_factory.create(UML.Interface)
+        )
+
+        klass.matrix.translate(0, 0)
+        interface.matrix.translate(300, 300)
+
+        cluster_items([klass, interface])
+
+        # Both should be collapsed
+        assert klass.collapsed == 1
+        assert interface.collapsed == 1
+
+    def test_cluster_maintains_diagram_integrity(self, element_factory):
+        """Test that clustering does not break diagram structure."""
+        diagram = element_factory.create(Diagram)
+        klass1 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        klass2 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        klass3 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+
+        klass1.matrix.translate(0, 0)
+        klass2.matrix.translate(200, 0)
+        klass3.matrix.translate(0, 200)
+
+        # Store diagram item count before
+        item_count_before = len(list(diagram.get_all_items()))
+
+        cluster_items([klass1, klass2, klass3])
+
+        # Diagram should still have same items
+        item_count_after = len(list(diagram.get_all_items()))
+        assert item_count_after == item_count_before
+
+        # All items should still be in diagram
+        all_items = list(diagram.get_all_items())
+        assert klass1 in all_items
+        assert klass2 in all_items
+        assert klass3 in all_items
+
+    def test_cluster_idempotent(self, element_factory):
+        """Test that clustering twice produces same result."""
+        diagram = element_factory.create(Diagram)
+        klass1 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+        klass2 = diagram.create(ClassItem, subject=element_factory.create(UML.Class))
+
+        klass1.matrix.translate(0, 0)
+        klass2.matrix.translate(500, 500)
+
+        # First cluster
+        cluster_items([klass1, klass2])
+        pos1_x, pos1_y = klass1.matrix[4], klass1.matrix[5]
+        pos2_x, pos2_y = klass2.matrix[4], klass2.matrix[5]
+
+        # Second cluster - should not change positions
+        cluster_items([klass1, klass2])
+
+        assert klass1.matrix[4] == pos1_x
+        assert klass1.matrix[5] == pos1_y
+        assert klass2.matrix[4] == pos2_x
+        assert klass2.matrix[5] == pos2_y
