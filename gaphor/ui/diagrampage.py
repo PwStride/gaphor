@@ -25,6 +25,7 @@ from gaphor.diagram.collapsible import (
     cluster_items,
     generate_group_id,
     remove_from_collapse_group,
+    uncluster_items,
 )
 from gaphor.diagram.diagramtoolbox import get_tool_def, tooliter
 from gaphor.diagram.event import DiagramSelectionChanged
@@ -417,13 +418,14 @@ class DiagramPage:
 
     @action(name="diagram.cluster-selected")
     def cluster_selected(self):
-        """Cluster selected items: collapse and pack tightly together.
+        """Cluster selected items: collapse, pack tightly, and group together.
 
         This operation:
         1. Collapses all selected collapsible items to their minimum size
         2. Removes extra space between items
         3. Arranges items in a compact grid layout
-        4. Reduces rendering overhead by minimizing the diagram area
+        4. Creates a collapse group so items can be expanded/collapsed together
+        5. Reduces rendering overhead by minimizing the diagram area
         """
         if not self.view:
             return
@@ -434,9 +436,58 @@ class DiagramPage:
         ]
         if len(collapsible_items) >= 2:
             with Transaction(self.event_manager):
-                cluster_items(collapsible_items)
-            # Post-transaction cleanup: ensure view state is reset
-            self.view.update_back_buffer()
+                cluster_items(
+                    collapsible_items,
+                    gap=0,
+                    create_group=True,
+                    preserve_existing_groups=True,
+                )
+            # Post-transaction cleanup: force view refresh for proper GTK rendering
+            # This ensures menus and hit testing work correctly after clustering
+            self._force_view_refresh()
+
+    @action(name="diagram.uncluster-selected")
+    def uncluster_selected(self):
+        """Uncluster selected items: expand and remove from cluster group.
+
+        This operation:
+        1. Expands all selected collapsible items
+        2. Removes them from auto-generated cluster groups
+        3. Preserves manually created groups
+        """
+        if not self.view:
+            return
+        collapsible_items = [
+            item
+            for item in self.view.selection.selected_items
+            if isinstance(item, Collapsible)
+        ]
+        if collapsible_items:
+            with Transaction(self.event_manager):
+                uncluster_items(collapsible_items)
+            # Post-transaction cleanup: force view refresh
+            self._force_view_refresh()
+
+    def _force_view_refresh(self):
+        """Force a complete view refresh to ensure proper GTK menu rendering.
+
+        This method ensures that:
+        1. The back buffer is updated with new item positions/sizes
+        2. Matrix caches are invalidated for proper coordinate transforms
+        3. The view is queued for redraw
+        """
+        if not self.view:
+            return
+
+        # Update the back buffer with current item states
+        self.view.update_back_buffer()
+
+        # Request all items to update their visual state
+        for item in self.diagram.get_all_items():
+            item.request_update()
+
+        # Queue a redraw to ensure GTK processes the changes
+        self.view.queue_draw()
 
     @action(name="diagram.lock-item")
     def lock_item(self, item_id: str):
@@ -843,15 +894,27 @@ def popup_model(element, item=None, selected_items=None):
             )
             group_part.append_item(create_group)
 
-            # Option to cluster selected items (collapse and pack tightly)
+            # Option to cluster selected items (collapse, pack, and group)
             cluster_selected = Gio.MenuItem.new(
                 gettext("Cluster Selected"),
                 "diagram.cluster-selected",
             )
             group_part.append_item(cluster_selected)
 
-            # Check if any selected items are in a group
+            # Check for clustered/grouped items state
             any_in_group = any(i.collapse_group for i in collapsible_selected)
+            any_collapsed = any(i.collapsed for i in collapsible_selected)
+
+            # Option to uncluster (expand and remove from auto-generated groups)
+            # Show this when items are collapsed and/or in a group
+            if any_collapsed or any_in_group:
+                uncluster = Gio.MenuItem.new(
+                    gettext("Uncluster Selected"),
+                    "diagram.uncluster-selected",
+                )
+                group_part.append_item(uncluster)
+
+            # Option to remove from collapse group (different from uncluster)
             if any_in_group:
                 ungroup = Gio.MenuItem.new(
                     gettext("Remove from Collapse Group"),
