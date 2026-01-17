@@ -294,8 +294,11 @@ class TestClusterFeatureCodePlacement:
         assert hasattr(DiagramPage, 'cluster_selected')
         assert callable(DiagramPage.cluster_selected)
 
-    def test_popup_model_includes_cluster_option(self, create, diagram, view):
-        """Verify popup_model includes cluster option for multiple collapsible items."""
+    def test_popup_model_for_classified_items(self, create, diagram, view):
+        """Verify popup_model shows association options for classified items.
+
+        Note: Collapse/expand options have been moved to the main Diagram menu.
+        """
         class1 = create(ClassItem, UML.Class)
         class2 = create(ClassItem, UML.Class)
 
@@ -303,26 +306,19 @@ class TestClusterFeatureCodePlacement:
 
         menu = popup_model(diagram, class1, view.selection.selected_items)
 
-        # Menu should include cluster option when 2+ collapsible items selected
+        # Menu should include options for classified items (associations)
         assert menu is not None
 
-        # Search through menu sections for "Cluster Selected" option
-        found_cluster_option = False
-        for i in range(menu.get_n_items()):
-            section = menu.get_item_link(i, "section")
-            if section:
-                for j in range(section.get_n_items()):
-                    item = section.get_item_attribute_value(j, "label")
-                    if item and "Cluster" in item.get_string():
-                        found_cluster_option = True
-                        break
-
-        # Note: The actual menu structure might differ, but cluster should be accessible
-        # when multiple collapsible items are selected
+        # Menu should have at least:
+        # - Show in Model Browser section
+        # - Association section (for 2+ classified items)
         assert menu.get_n_items() >= 2  # Multiple sections should exist
 
-    def test_cluster_in_correct_menu_section(self, create, diagram, view):
-        """Test that cluster option appears in the group operations section."""
+    def test_popup_model_structure_for_selected_items(self, create, diagram, view):
+        """Test popup model structure for selected items.
+
+        Note: Collapse/expand options have been moved to the main Diagram menu.
+        """
         class1 = create(ClassItem, UML.Class)
         class2 = create(ClassItem, UML.Class)
         class3 = create(ClassItem, UML.Class)
@@ -331,10 +327,10 @@ class TestClusterFeatureCodePlacement:
 
         menu = popup_model(diagram, class1, view.selection.selected_items)
 
-        # With 3 collapsible items, menu should have:
+        # With 3 classified items, menu should have:
         # - Show in Model Browser section
-        # - Association section (if Classified)
-        # - Collapse/Expand/Group section (where Cluster should be)
+        # - Association section (for Classified items)
+        # - Lock/Unlock section (for multiple Lockable items)
         assert menu.get_n_items() >= 2
 
     @pytest.mark.asyncio
@@ -564,7 +560,11 @@ class TestContextMenuControllerIntegrity:
         assert menu is not None
 
     def test_popup_model_handles_single_collapsible_item(self, create, diagram, view):
-        """Test popup model for single collapsible item (no cluster option)."""
+        """Test popup model for single collapsible item.
+
+        Note: Collapse/expand options are now in the main Diagram menu,
+        so the context menu only shows basic options like Show in Model Browser.
+        """
         class1 = create(ClassItem, UML.Class)
 
         view.selection.select_items(class1)
@@ -572,8 +572,8 @@ class TestContextMenuControllerIntegrity:
         menu = popup_model(diagram, class1, view.selection.selected_items)
 
         assert menu is not None
-        # Single item should show collapse/expand but not cluster
-        # (cluster requires 2+ items)
+        # Menu should have at least the basic options (Show in Model Browser)
+        assert menu.get_n_items() >= 1
 
 
 class TestClusterStateConsistency:
@@ -817,16 +817,15 @@ class TestMenuStateAfterTransactions:
         # Transaction should be complete
         assert not Transaction.in_transaction()
 
-        # Menu should reflect current state (items are collapsed)
+        # Menu should still work (items are collapsed)
         menu = popup_model(diagram, class1, view.selection.selected_items)
         assert menu is not None
 
-        # The menu should show expand option since items are collapsed
-        # (checking menu structure for collapsed item)
+        # The context menu no longer shows collapse/expand options (moved to main menu)
         single_item_menu = popup_model(diagram, class1, {class1})
         assert single_item_menu is not None
-        # Should have expand option since item is collapsed
-        assert single_item_menu.get_n_items() >= 2  # Browser + collapse section
+        # Should have basic options (Show in Model Browser + lock/unlock)
+        assert single_item_menu.get_n_items() >= 1
 
         page.close()
 
@@ -1249,10 +1248,18 @@ class TestUnclusterFunctionality:
 
 
 class TestPopupMenuStateVariables:
-    """Tests for popup menu state variables and alternatives."""
+    """Tests for popup menu state variables and alternatives.
 
-    def test_popup_model_detects_collapsed_state(self, create, diagram, view):
-        """Test popup_model correctly detects collapsed item state."""
+    Note: Collapse/expand options have been moved to the main Diagram menu.
+    These tests now verify that popup_model works correctly without collapse options.
+    """
+
+    def test_popup_model_works_with_collapsed_items(self, create, diagram, view):
+        """Test popup_model works correctly with collapsed items.
+
+        Note: Collapse/expand options are now in the main Diagram menu,
+        not in the context menu.
+        """
         class1 = create(ClassItem, UML.Class)
 
         # Not collapsed
@@ -1261,16 +1268,17 @@ class TestPopupMenuStateVariables:
 
         menu = popup_model(diagram, class1, {class1})
         assert menu is not None
-        # Menu should show "Collapse" option (item is expanded)
 
         # Set to collapsed
         class1.collapsed = 1
         menu = popup_model(diagram, class1, {class1})
         assert menu is not None
-        # Menu should show "Expand" option (item is collapsed)
 
-    def test_popup_model_detects_group_membership(self, create, diagram, view):
-        """Test popup_model correctly detects group membership."""
+    def test_popup_model_works_with_grouped_items(self, create, diagram, view):
+        """Test popup_model works correctly with items in groups.
+
+        Note: Collapse/expand and group options are now in the main Diagram menu.
+        """
         class1 = create(ClassItem, UML.Class)
         class2 = create(ClassItem, UML.Class)
 
@@ -1286,10 +1294,12 @@ class TestPopupMenuStateVariables:
 
         menu = popup_model(diagram, class1, view.selection.selected_items)
         assert menu is not None
-        # Should now show "Remove from Collapse Group" option
 
-    def test_popup_model_any_in_group_variable(self, create, diagram, view):
-        """Test the any_in_group variable behavior in popup_model."""
+    def test_popup_model_handles_various_selection_states(self, create, diagram, view):
+        """Test popup_model handles various selection states.
+
+        Note: Collapse/expand options are now in the main Diagram menu.
+        """
         class1 = create(ClassItem, UML.Class)
         class2 = create(ClassItem, UML.Class)
         class3 = create(ClassItem, UML.Class)
@@ -1301,10 +1311,12 @@ class TestPopupMenuStateVariables:
 
         menu = popup_model(diagram, class1, view.selection.selected_items)
         assert menu is not None
-        # any_in_group should be True (at least one item is in a group)
 
-    def test_popup_model_any_collapsed_variable(self, create, diagram, view):
-        """Test the any_collapsed variable behavior in popup_model."""
+    def test_popup_model_handles_mixed_collapsed_state(self, create, diagram, view):
+        """Test popup_model handles items with mixed collapsed states.
+
+        Note: Collapse/expand options are now in the main Diagram menu.
+        """
         class1 = create(ClassItem, UML.Class)
         class2 = create(ClassItem, UML.Class)
 
@@ -1316,10 +1328,12 @@ class TestPopupMenuStateVariables:
 
         menu = popup_model(diagram, class1, view.selection.selected_items)
         assert menu is not None
-        # any_collapsed should be True, so Uncluster option should appear
 
-    def test_popup_model_shows_uncluster_when_collapsed(self, create, diagram, view):
-        """Test popup_model shows Uncluster when items are collapsed."""
+    def test_popup_model_works_with_collapsed_items_multi(self, create, diagram, view):
+        """Test popup_model works with multiple collapsed items.
+
+        Note: Uncluster option is now in the main Diagram menu.
+        """
         class1 = create(ClassItem, UML.Class)
         class2 = create(ClassItem, UML.Class)
 
@@ -1331,10 +1345,12 @@ class TestPopupMenuStateVariables:
 
         menu = popup_model(diagram, class1, view.selection.selected_items)
         assert menu is not None
-        # Menu should show Uncluster option since items are collapsed
 
-    def test_popup_model_shows_uncluster_when_in_group(self, create, diagram, view):
-        """Test popup_model shows Uncluster when items are in a group."""
+    def test_popup_model_works_with_items_in_group(self, create, diagram, view):
+        """Test popup_model works with items that are in a group.
+
+        Note: Uncluster option is now in the main Diagram menu.
+        """
         class1 = create(ClassItem, UML.Class)
         class2 = create(ClassItem, UML.Class)
 
@@ -1348,7 +1364,6 @@ class TestPopupMenuStateVariables:
 
         menu = popup_model(diagram, class1, view.selection.selected_items)
         assert menu is not None
-        # Menu should show Uncluster option since items are in a group
 
 
 class TestClusterUnclusterCycles:

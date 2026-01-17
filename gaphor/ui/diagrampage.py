@@ -29,7 +29,7 @@ from gaphor.diagram.collapsible import (
 )
 from gaphor.diagram.diagramtoolbox import get_tool_def, tooliter
 from gaphor.diagram.event import DiagramSelectionChanged
-from gaphor.diagram.lockable import Lockable, is_item_locked
+from gaphor.diagram.lockable import Lockable
 from gaphor.diagram.painter import DiagramTypePainter, ItemPainter
 from gaphor.diagram.presentation import Classified, connect
 from gaphor.diagram.tools import (
@@ -828,26 +828,6 @@ def popup_model(element, item=None, selected_items=None):
             assoc_part.append_item(remove_assoc)
             model.append_section(None, assoc_part)
 
-    # Add collapse/expand option for collapsible items
-    if item is not None and isinstance(item, Collapsible):
-        # Don't show collapse/expand if item is locked
-        if not is_item_locked(item):
-            collapse_part = Gio.Menu.new()
-            if item.collapsed:
-                collapse_item = Gio.MenuItem.new(
-                    gettext("Expand"),
-                    "diagram.expand-item",
-                )
-            else:
-                collapse_item = Gio.MenuItem.new(
-                    gettext("Collapse"),
-                    "diagram.collapse-item",
-                )
-            collapse_item.set_attribute_value(
-                "target", GLib.Variant.new_string(item.id)
-            )
-            collapse_part.append_item(collapse_item)
-            model.append_section(None, collapse_part)
 
     # Add lock/unlock option for lockable items
     if item is not None and isinstance(item, Lockable):
@@ -866,63 +846,6 @@ def popup_model(element, item=None, selected_items=None):
         lock_part.append_item(lock_item)
         model.append_section(None, lock_part)
 
-    # Add group collapse options when multiple items are selected
-    if selected_items:
-        collapsible_selected = [i for i in selected_items if isinstance(i, Collapsible)]
-
-        if len(collapsible_selected) >= 2:
-            group_part = Gio.Menu.new()
-
-            # Option to collapse all selected
-            collapse_all = Gio.MenuItem.new(
-                gettext("Collapse Selected"),
-                "diagram.collapse-selected",
-            )
-            group_part.append_item(collapse_all)
-
-            # Option to expand all selected
-            expand_all = Gio.MenuItem.new(
-                gettext("Expand Selected"),
-                "diagram.expand-selected",
-            )
-            group_part.append_item(expand_all)
-
-            # Option to create a collapse group
-            create_group = Gio.MenuItem.new(
-                gettext("Create Collapse Group"),
-                "diagram.group-collapse",
-            )
-            group_part.append_item(create_group)
-
-            # Option to cluster selected items (collapse, pack, and group)
-            cluster_selected = Gio.MenuItem.new(
-                gettext("Cluster Selected"),
-                "diagram.cluster-selected",
-            )
-            group_part.append_item(cluster_selected)
-
-            # Check for clustered/grouped items state
-            any_in_group = any(i.collapse_group for i in collapsible_selected)
-            any_collapsed = any(i.collapsed for i in collapsible_selected)
-
-            # Option to uncluster (expand and remove from auto-generated groups)
-            # Show this when items are collapsed and/or in a group
-            if any_collapsed or any_in_group:
-                uncluster = Gio.MenuItem.new(
-                    gettext("Uncluster Selected"),
-                    "diagram.uncluster-selected",
-                )
-                group_part.append_item(uncluster)
-
-            # Option to remove from collapse group (different from uncluster)
-            if any_in_group:
-                ungroup = Gio.MenuItem.new(
-                    gettext("Remove from Collapse Group"),
-                    "diagram.ungroup-collapse",
-                )
-                group_part.append_item(ungroup)
-
-            model.append_section(None, group_part)
 
     # Add lock/unlock options when multiple items are selected
     if selected_items:
