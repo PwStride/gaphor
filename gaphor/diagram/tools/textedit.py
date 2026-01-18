@@ -3,7 +3,7 @@ from gi.repository import Gdk, Gtk
 from gaphor.core.modeling import Diagram
 from gaphor.diagram.event import DiagramOpened
 from gaphor.diagram.instanteditors import instant_editor
-from gaphor.diagram.lockable import is_item_locked
+from gaphor.plugins.lock.lockable import is_item_locked
 
 
 def text_edit_tools(event_manager):

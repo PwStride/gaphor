@@ -98,6 +98,7 @@ documentation = "https://docs.gaphor.org/"
 "diagram_export" = "gaphor.plugins.diagramexport.export:DiagramExport"
 "auto_layout" = "gaphor.plugins.autolayout:AutoLayoutService"
 "collapse_expand" = "gaphor.plugins.diagramtools:CollapseExpandService"
+"lock" = "gaphor.plugins.lock:LockService"
 
 [project.entry-points."gaphor.modelinglanguages"]
 "Core" = "gaphor.core.modeling.modelinglanguage:CoreModelingLanguage"

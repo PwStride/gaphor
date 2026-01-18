@@ -20,7 +20,7 @@ from gaphor.core.modeling.event import (
 )
 from gaphor.core.styling import StyleNode
 from gaphor.diagram.event import DiagramSelectionChanged
-from gaphor.diagram.lockable import is_item_locked
+from gaphor.plugins.lock.lockable import is_item_locked
 from gaphor.diagram.propertypages import PropertyPages, new_resource_builder
 from gaphor.i18n import gettext, localedir
 from gaphor.ui.abc import UIComponent

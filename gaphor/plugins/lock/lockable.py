@@ -18,11 +18,27 @@ from __future__ import annotations
 from gaphas.geometry import Rectangle
 
 from gaphor.core.modeling.properties import attribute
-from gaphor.diagram.shapes import cairo_state
 
 # Constants for the lock icon
 LOCK_ICON_SIZE = 12
 LOCK_ICON_MARGIN = 4
+
+
+class _cairo_state:
+    """Context manager for saving and restoring cairo state.
+
+    This is a local copy to avoid circular imports with gaphor.diagram.shapes.
+    """
+
+    def __init__(self, cr):
+        self._cr = cr
+
+    def __enter__(self):
+        self._cr.save()
+        return self._cr
+
+    def __exit__(self, _type, _value, _traceback):
+        self._cr.restore()
 
 
 def draw_lock_icon(context, bounding_box: Rectangle) -> Rectangle:
@@ -40,7 +56,7 @@ def draw_lock_icon(context, bounding_box: Rectangle) -> Rectangle:
     x = bounding_box.x + margin
     y = bounding_box.y + margin
 
-    with cairo_state(cr) as cr:
+    with _cairo_state(cr) as cr:
         stroke_color = style.get("color", (0, 0, 0, 1))
         cr.set_source_rgba(*stroke_color)
         cr.set_line_width(1.5)

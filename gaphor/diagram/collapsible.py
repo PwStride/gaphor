@@ -295,8 +295,8 @@ def cluster_items(
     """
     import math
 
-    from gaphor.diagram.lockable import is_item_locked
     from gaphor.diagram.presentation import ElementPresentation
+    from gaphor.plugins.lock.lockable import is_item_locked
 
     # Filter to unlocked element presentations only
     element_items = [
@@ -403,7 +403,7 @@ def uncluster_items(items) -> None:
     Args:
         items: List of diagram items to uncluster
     """
-    from gaphor.diagram.lockable import is_item_locked
+    from gaphor.plugins.lock.lockable import is_item_locked
 
     diagram = None
 

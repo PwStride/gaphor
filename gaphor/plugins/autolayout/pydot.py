@@ -17,7 +17,7 @@ from gaphor.core import event_handler
 from gaphor.core.modeling import Base, Diagram, Presentation
 from gaphor.diagram.connectors import ItemTemporaryDisconnected
 from gaphor.diagram.event import DiagramClosed, DiagramOpened
-from gaphor.diagram.lockable import is_item_locked
+from gaphor.plugins.lock.lockable import is_item_locked
 from gaphor.diagram.presentation import (
     AttachedPresentation,
     ElementPresentation,

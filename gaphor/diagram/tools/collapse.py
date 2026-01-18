@@ -14,7 +14,7 @@ from gaphor.diagram.collapsible import (
     can_show_collapse_icon,
     is_point_in_collapse_icon,
 )
-from gaphor.diagram.lockable import is_item_locked
+from gaphor.plugins.lock.lockable import is_item_locked
 from gaphor.transaction import Transaction
 
 

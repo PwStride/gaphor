@@ -25,7 +25,7 @@ from gaphor.diagram.collapsible import (
     remove_from_collapse_group,
     uncluster_items,
 )
-from gaphor.diagram.lockable import Lockable
+from gaphor.plugins.lock.lockable import Lockable
 from gaphor.diagram.presentation import Classified
 from gaphor.ui.diagrampage import (
     DiagramPage,

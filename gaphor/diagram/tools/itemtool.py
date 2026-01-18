@@ -11,7 +11,7 @@ from gaphas.view import GtkView
 from gi.repository import Gdk, Gtk
 
 from gaphor.diagram.event import DiagramSelectionChanged
-from gaphor.diagram.lockable import is_item_locked
+from gaphor.plugins.lock.lockable import is_item_locked
 from gaphor.diagram.presentation import Framed
 
 

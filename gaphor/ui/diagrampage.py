@@ -29,7 +29,6 @@ from gaphor.diagram.collapsible import (
 )
 from gaphor.diagram.diagramtoolbox import get_tool_def, tooliter
 from gaphor.diagram.event import DiagramSelectionChanged
-from gaphor.diagram.lockable import Lockable
 from gaphor.diagram.painter import DiagramTypePainter, ItemPainter
 from gaphor.diagram.presentation import Classified, connect
 from gaphor.diagram.tools import (
@@ -489,42 +488,6 @@ class DiagramPage:
         # Queue a redraw to ensure GTK processes the changes
         self.view.queue_draw()
 
-    @action(name="diagram.lock-item")
-    def lock_item(self, item_id: str):
-        """Lock a diagram item."""
-        item = self.element_factory.lookup(item_id)
-        if item and isinstance(item, Lockable):
-            with Transaction(self.event_manager):
-                item.locked = 1
-
-    @action(name="diagram.unlock-item")
-    def unlock_item(self, item_id: str):
-        """Unlock a diagram item."""
-        item = self.element_factory.lookup(item_id)
-        if item and isinstance(item, Lockable):
-            with Transaction(self.event_manager):
-                item.locked = 0
-
-    @action(name="diagram.lock-selected")
-    def lock_selected(self):
-        """Lock all selected items."""
-        if not self.view:
-            return
-        with Transaction(self.event_manager):
-            for item in self.view.selection.selected_items:
-                if isinstance(item, Lockable):
-                    item.locked = 1
-
-    @action(name="diagram.unlock-selected")
-    def unlock_selected(self):
-        """Unlock all selected items."""
-        if not self.view:
-            return
-        with Transaction(self.event_manager):
-            for item in self.view.selection.selected_items:
-                if isinstance(item, Lockable):
-                    item.locked = 0
-
     def _create_association_between_items(self, head_item, tail_item, config_func=None):
         """Helper method to create an association between two items."""
         from gaphor.UML.classes.association import AssociationItem
@@ -827,47 +790,5 @@ def popup_model(element, item=None, selected_items=None):
             )
             assoc_part.append_item(remove_assoc)
             model.append_section(None, assoc_part)
-
-
-    # Add lock/unlock option for lockable items
-    if item is not None and isinstance(item, Lockable):
-        lock_part = Gio.Menu.new()
-        if item.locked:
-            lock_item = Gio.MenuItem.new(
-                gettext("Unlock"),
-                "diagram.unlock-item",
-            )
-        else:
-            lock_item = Gio.MenuItem.new(
-                gettext("Lock"),
-                "diagram.lock-item",
-            )
-        lock_item.set_attribute_value("target", GLib.Variant.new_string(item.id))
-        lock_part.append_item(lock_item)
-        model.append_section(None, lock_part)
-
-
-    # Add lock/unlock options when multiple items are selected
-    if selected_items:
-        lockable_selected = [i for i in selected_items if isinstance(i, Lockable)]
-
-        if len(lockable_selected) >= 2:
-            lock_group_part = Gio.Menu.new()
-
-            # Option to lock all selected
-            lock_all = Gio.MenuItem.new(
-                gettext("Lock Selected"),
-                "diagram.lock-selected",
-            )
-            lock_group_part.append_item(lock_all)
-
-            # Option to unlock all selected
-            unlock_all = Gio.MenuItem.new(
-                gettext("Unlock Selected"),
-                "diagram.unlock-selected",
-            )
-            lock_group_part.append_item(unlock_all)
-
-            model.append_section(None, lock_group_part)
 
     return model

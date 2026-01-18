@@ -25,7 +25,7 @@ from gaphor.diagram.collapsible import (
     uncluster_items,
 )
 from gaphor.diagram.event import DiagramClosed, DiagramOpened
-from gaphor.diagram.lockable import is_item_locked
+from gaphor.plugins.lock.lockable import is_item_locked
 from gaphor.event import ActionEnabled
 from gaphor.i18n import gettext
 from gaphor.transaction import Transaction

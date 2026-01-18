@@ -15,7 +15,7 @@ from gaphor.core.modeling.diagram import Diagram, DrawContext
 from gaphor.core.modeling.event import AttributeUpdated, RevertibleEvent
 from gaphor.core.modeling.presentation import Presentation, S, literal_eval
 from gaphor.core.modeling.properties import attribute
-from gaphor.diagram.lockable import Lockable
+from gaphor.plugins.lock.lockable import Lockable
 from gaphor.diagram.shapes import CssNode, Shape, Text, stroke, traverse_css_nodes
 from gaphor.diagram.text import (
     TextAlign,
