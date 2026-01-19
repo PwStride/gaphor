@@ -97,7 +97,6 @@ documentation = "https://docs.gaphor.org/"
 "console_window" = "gaphor.plugins.console.consolewindow:ConsoleWindow"
 "diagram_export" = "gaphor.plugins.diagramexport.export:DiagramExport"
 "auto_layout" = "gaphor.plugins.autolayout:AutoLayoutService"
-"collapse_expand" = "gaphor.plugins.diagramtools:CollapseExpandService"
 "lock" = "gaphor.plugins.lock:LockService"
 
 [project.entry-points."gaphor.modelinglanguages"]

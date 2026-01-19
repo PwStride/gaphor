@@ -35,8 +35,8 @@ class LockService(Service, ActionProvider):
     - Lock All: Lock all items in the current diagram
     - Unlock All: Unlock all items in the current diagram
 
-    The service follows the plugin pattern used by AutoLayoutService and
-    CollapseExpandService, registering actions via the tools_menu MenuFragment.
+    The service follows the plugin pattern used by AutoLayoutService,
+    registering actions via the tools_menu MenuFragment.
     """
 
     def __init__(self, event_manager, diagrams, tools_menu=None):

@@ -1,3 +1,2 @@
-# ruff: noqa: F401
-
-from gaphor.plugins.diagramtools.collapseexpand import CollapseExpandService
+# This plugin directory is reserved for diagram-related tools.
+# The CollapseExpandService has been moved to the autolayout plugin.

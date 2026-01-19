@@ -77,19 +77,15 @@ from gaphas.item import NE, NW, SE, SW
 from gaphor import UML
 from gaphor.core.modeling.presentation import literal_eval
 from gaphor.core.modeling.properties import attribute
-from gaphor.diagram.collapsible import (
-    Collapsible,
-    draw_collapsed_border,
-    draw_expanded_border,
-)
 from gaphor.diagram.presentation import (
     Classified,
     ElementPresentation,
     text_name,
 )
-from gaphor.diagram.shapes import Box, IconBox, stroke
+from gaphor.diagram.shapes import Box, IconBox, draw_border, stroke
 from gaphor.diagram.support import represents
 from gaphor.UML.classes.klass import (
+    _draw_icon_only_box,
     attribute_watches,
     attributes_compartment,
     operation_watches,
@@ -152,7 +148,7 @@ class InterfacePort(LinePort):
 
 
 @represents(UML.Interface)
-class InterfaceItem(Collapsible, Classified, ElementPresentation):
+class InterfaceItem(Classified, ElementPresentation):
     """Interface item supporting class box, folded notations and assembly
     connector icon mode.
 
@@ -204,6 +200,12 @@ class InterfaceItem(Collapsible, Classified, ElementPresentation):
     show_attributes: attribute[int] = attribute("show_attributes", int, default=True)
 
     show_operations: attribute[int] = attribute("show_operations", int, default=True)
+
+    # Collapse state: 0=expanded, 1=collapsed (name only), 2=icon-only (clustered)
+    collapsed: attribute[int] = attribute("collapsed", int, default=0)
+
+    # Group ID for coordinated collapse/expand with other items
+    collapse_group: attribute[str] = attribute("collapse_group", str, default="")
 
     @property
     def side(self):
@@ -279,14 +281,17 @@ class InterfaceItem(Collapsible, Classified, ElementPresentation):
             self.shape = self.ball_and_socket_shape(connectors)
 
     def class_shape(self):
-        if self.collapsed:
-            # Collapsed view: show only name compartment with collapse icon
+        if self.collapsed == 2:
+            # Icon-only view for auto layout clustered state
+            return Box(draw=_draw_icon_only_box)
+        elif self.collapsed:
+            # Collapsed view: show only name compartment
             return Box(
                 name_compartment(self, lambda: [self.diagram.gettext("interface")]),
-                draw=draw_collapsed_border,
+                draw=draw_border,
             )
         else:
-            # Expanded view: show all compartments with expand icon
+            # Expanded view: show all compartments
             return Box(
                 name_compartment(self, lambda: [self.diagram.gettext("interface")]),
                 *(
@@ -306,7 +311,7 @@ class InterfaceItem(Collapsible, Classified, ElementPresentation):
                     and stereotype_compartments(self.subject)
                     or []
                 ),
-                draw=draw_expanded_border,
+                draw=draw_border,
             )
 
     def ball_and_socket_shape(self, connectors=None):

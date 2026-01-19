@@ -8,7 +8,6 @@ from gaphor import UML
 from gaphor.core import gettext
 from gaphor.core.eventmanager import EventManager
 from gaphor.core.format import format, parse
-from gaphor.diagram.collapsible import Collapsible
 from gaphor.diagram.propertypages import (
     NamePropertyPage,
     PropertyPageBase,
@@ -582,7 +581,7 @@ class CollapsedPropertyPage(PropertyPageBase):
         self.event_manager = event_manager
 
     def construct(self):
-        if not isinstance(self.item, Collapsible):
+        if not hasattr(self.item, "collapsed"):
             return
 
         builder = new_builder(

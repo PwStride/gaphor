@@ -2,18 +2,14 @@ import logging
 
 from gaphor import UML
 from gaphor.core.modeling.properties import attribute
-from gaphor.diagram.collapsible import (
-    Collapsible,
-    draw_collapsed_border,
-    draw_expanded_border,
-)
 from gaphor.diagram.presentation import (
     Classified,
     ElementPresentation,
 )
-from gaphor.diagram.shapes import Box
+from gaphor.diagram.shapes import Box, draw_border
 from gaphor.diagram.support import represents
 from gaphor.UML.classes.klass import (
+    _draw_icon_only_box,
     attribute_watches,
     attributes_compartment,
     operation_watches,
@@ -27,7 +23,7 @@ log = logging.getLogger(__name__)
 
 @represents(UML.DataType)
 @represents(UML.PrimitiveType)
-class DataTypeItem(Collapsible, Classified, ElementPresentation[UML.DataType]):
+class DataTypeItem(Classified, ElementPresentation[UML.DataType]):
     """This item visualizes a Data Type instance.
 
     A DataTypeItem contains two compartments:
@@ -55,6 +51,12 @@ class DataTypeItem(Collapsible, Classified, ElementPresentation[UML.DataType]):
 
     show_operations: attribute[int] = attribute("show_operations", int, default=True)
 
+    # Collapse state: 0=expanded, 1=collapsed (name only), 2=icon-only (clustered)
+    collapsed: attribute[int] = attribute("collapsed", int, default=0)
+
+    # Group ID for coordinated collapse/expand with other items
+    collapse_group: attribute[str] = attribute("collapse_group", str, default="")
+
     def additional_stereotypes(self):
         from gaphor.SysML import sysml
 
@@ -67,14 +69,17 @@ class DataTypeItem(Collapsible, Classified, ElementPresentation[UML.DataType]):
         return ()
 
     def update_shapes(self, event=None):
-        if self.collapsed:
-            # Collapsed view: show only name compartment with collapse icon
+        if self.collapsed == 2:
+            # Icon-only view for auto layout clustered state
+            self.shape = Box(draw=_draw_icon_only_box)
+        elif self.collapsed:
+            # Collapsed view: show only name compartment
             self.shape = Box(
                 name_compartment(self, self.additional_stereotypes),
-                draw=draw_collapsed_border,
+                draw=draw_border,
             )
         else:
-            # Expanded view: show all compartments with expand icon
+            # Expanded view: show all compartments
             self.shape = Box(
                 name_compartment(self, self.additional_stereotypes),
                 *(
@@ -94,5 +99,5 @@ class DataTypeItem(Collapsible, Classified, ElementPresentation[UML.DataType]):
                     and stereotype_compartments(self.subject)
                     or []
                 ),
-                draw=draw_expanded_border,
+                draw=draw_border,
             )

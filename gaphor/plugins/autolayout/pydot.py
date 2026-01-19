@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+import uuid
 from collections.abc import Iterable, Iterator
 from functools import singledispatch
 
@@ -33,8 +35,106 @@ from gaphor.UML.classes.generalization import GeneralizationItem
 DOT = "dot"
 DPI = 72.0
 
+# Size for clustered collapsed items
+COLLAPSED_ICON_BOX_SIZE = 20
+
+
+def _is_collapsible(item) -> bool:
+    """Check if an item supports collapse functionality."""
+    return hasattr(item, "collapsed") and hasattr(item, "collapse_group")
+
+
+def _cluster_items(items, gap: float = 0) -> None:
+    """Cluster items by collapsing and packing tightly.
+
+    This function:
+    1. Filters out locked items
+    2. Collapses items to icon-only state (collapsed=2)
+    3. Repositions items in a compact grid
+    """
+    # Filter to unlocked element presentations
+    element_items = [
+        item
+        for item in items
+        if isinstance(item, ElementPresentation) and not is_item_locked(item)
+    ]
+
+    if len(element_items) < 2:
+        return
+
+    # Generate group ID for coordinated expand/collapse
+    group_id = f"collapse-group-{uuid.uuid4().hex[:8]}"
+
+    # Collapse items and assign to group
+    for item in element_items:
+        if _is_collapsible(item):
+            item.collapsed = 2  # Icon-only mode
+            if not item.collapse_group:
+                item.collapse_group = group_id
+
+        # Set to icon-only size
+        item.width = COLLAPSED_ICON_BOX_SIZE
+        item.height = COLLAPSED_ICON_BOX_SIZE
+        item.request_update()
+
+    # Calculate anchor position and sort spatially
+    min_x = min(item.matrix[4] for item in element_items)
+    min_y = min(item.matrix[5] for item in element_items)
+    sorted_items = sorted(element_items, key=lambda i: (i.matrix[5], i.matrix[4]))
+
+    # Calculate grid dimensions
+    num_cols = max(1, int(math.ceil(math.sqrt(len(sorted_items)))))
+
+    # Position items in tight grid
+    target_y, row_height, row_data = min_y, 0, []
+
+    for idx, item in enumerate(sorted_items):
+        w, h = item.width, item.height
+        row_data.append((item, w, h))
+        row_height = max(row_height, h)
+
+        if len(row_data) >= num_cols or idx == len(sorted_items) - 1:
+            target_x = min_x
+            for row_item, rw, rh in row_data:
+                row_item.matrix.translate(
+                    target_x - row_item.matrix[4], target_y - row_item.matrix[5]
+                )
+                target_x += rw + gap
+            target_y += row_height + gap
+            row_height, row_data = 0, []
+
+    # Request updates
+    for item in element_items:
+        item.request_update()
+
+
+def _uncluster_items(items) -> None:
+    """Uncluster items by expanding and removing from auto groups."""
+    for item in items:
+        if is_item_locked(item):
+            continue
+
+        if _is_collapsible(item):
+            item.collapsed = 0  # Expanded
+
+            # Remove from auto-generated groups only
+            if item.collapse_group and item.collapse_group.startswith("collapse-group-"):
+                item.collapse_group = ""
+
+            item.request_update()
+
 
 class AutoLayoutService(Service, ActionProvider):
+    """Service providing auto layout and collapse functionality for diagrams.
+
+    This service combines:
+    - Auto layout using Graphviz DOT engine
+    - Cluster/collapse functionality to minimize selected items to icon-only view
+
+    The collapse functionality is tied to auto layout as clustered items
+    are displayed as icon-only triangles for minimal visual footprint.
+    """
+
     def __init__(self, event_manager, diagrams, tools_menu=None, dump_gv=False):
         self.event_manager = event_manager
         self.diagrams = diagrams
@@ -63,6 +163,60 @@ class AutoLayoutService(Service, ActionProvider):
         if current_diagram := self.diagrams.get_current_diagram():
             self.layout(current_diagram, splines="ortho")
 
+    @action(
+        name="cluster-selected",
+        label=gettext("Cluster Selected"),
+        shortcut="<Primary><Shift>U",
+    )
+    def cluster_selected(self):
+        """Cluster selected items: collapse to icon-only and pack tightly."""
+        current_diagram = self.diagrams.get_current_diagram()
+        if not current_diagram:
+            return
+
+        selected_items = self._get_selected_items()
+        collapsible_items = [
+            item
+            for item in selected_items
+            if _is_collapsible(item) and not is_item_locked(item)
+        ]
+
+        if len(collapsible_items) < 2:
+            return
+
+        with Transaction(self.event_manager):
+            _cluster_items(collapsible_items, gap=0)
+            current_diagram.update(collapsible_items)
+
+    @action(
+        name="uncluster-selected",
+        label=gettext("Uncluster Selected"),
+    )
+    def uncluster_selected(self):
+        """Uncluster selected items: expand and remove from cluster group."""
+        current_diagram = self.diagrams.get_current_diagram()
+        if not current_diagram:
+            return
+
+        selected_items = self._get_selected_items()
+        collapsible_items = [
+            item for item in selected_items if _is_collapsible(item)
+        ]
+
+        if not collapsible_items:
+            return
+
+        with Transaction(self.event_manager):
+            _uncluster_items(collapsible_items)
+            current_diagram.update(collapsible_items)
+
+    def _get_selected_items(self):
+        """Get currently selected items from the active diagram view."""
+        if page := self.diagrams.get_current_page():
+            if view := page.view:
+                return list(view.selection.selected_items)
+        return []
+
     def layout(self, diagram: Diagram, splines="polyline"):
         auto_layout = AutoLayout(self.event_manager, self.dump_gv)
 
@@ -75,7 +229,12 @@ class AutoLayoutService(Service, ActionProvider):
             isinstance(event, DiagramOpened) or self.diagrams.get_current_diagram()
         )
 
-        for action_name in ("win.auto-layout", "win.auto-layout-ortho"):
+        for action_name in (
+            "win.auto-layout",
+            "win.auto-layout-ortho",
+            "win.cluster-selected",
+            "win.uncluster-selected",
+        ):
             self.event_manager.handle(ActionEnabled(action_name, enabled))
 
 
