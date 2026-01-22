@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   version="1.1"
+   xmlns="http://www.w3.org/2000/svg">
+  <g style="fill:none;stroke:#000000;stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round">
+    <!-- Root box -->
+    <rect x="5" y="1" width="6" height="3" rx="0.5"/>
+    <!-- Left child box -->
+    <rect x="1" y="7" width="5" height="3" rx="0.5"/>
+    <!-- Right child box -->
+    <rect x="10" y="7" width="5" height="3" rx="0.5"/>
+    <!-- Line from root to left child -->
+    <line x1="6.5" y1="4" x2="3.5" y2="7"/>
+    <!-- Line from root to right child -->
+    <line x1="9.5" y1="4" x2="12.5" y2="7"/>
+    <!-- Bottom dots indicating more levels -->
+    <circle cx="3.5" cy="13.5" r="0.8" style="fill:#000000;stroke:none"/>
+    <circle cx="12.5" cy="13.5" r="0.8" style="fill:#000000;stroke:none"/>
+  </g>
+</svg>

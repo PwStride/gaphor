@@ -6,6 +6,7 @@ from gaphas.item import SE
 from gaphor.core import gettext
 from gaphor.diagram.diagramtoolbox import ToolDef, ToolSection, new_item_factory
 from gaphor.diagram.general import diagramitems as general
+from gaphor.diagram.general.decisiontree import decision_tree_factory
 from gaphor.UML import Comment, Image
 from gaphor.UML.general import CommentItem, CommentLineItem, ImageItem
 
@@ -90,6 +91,13 @@ general_tools = ToolSection(
             None,
             new_item_factory(ImageItem, Image, config_func=image_config),
             handle_index=SE,
+        ),
+        ToolDef(
+            "toolbox-decision-tree",
+            gettext("Decision Tree"),
+            "gaphor-decision-tree-symbolic",
+            None,
+            decision_tree_factory,
         ),
     ),
 )
